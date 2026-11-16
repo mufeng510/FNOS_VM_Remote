@@ -57,7 +57,7 @@
 - [ ] `cat /etc/sudoers.d/fnos-vm-remote` 内容精确为 helper 三条命令
 - [ ] `sudo -l -U fnos-vm-remote` 显示仅三个 NOPASSWD 条目
 - [ ] `ps -o user= -p $(cat /var/apps/fnos-vm-remote/var/app.pid)` 显示包用户（非 root、非当前用户）
-- [ ] helper 拒绝非法子命令：`sudo -u fnos-vm-remote /var/apps/fnos-vm-remote/target/app/server/fnos-vm-remote-helper destroy` → 报错退出
+- [ ] helper 拒绝非法子命令：`sudo -u fnos-vm-remote /var/apps/fnos-vm-remote/target/server/fnos-vm-remote-helper destroy` → 报错退出
 
 ### 功能
 - [ ] 状态查询、开机、再次开机（返回已运行）、正常关机、再次关机（返回已关闭）

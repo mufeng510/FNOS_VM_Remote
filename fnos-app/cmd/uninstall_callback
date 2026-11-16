@@ -15,8 +15,8 @@ TEMPLOG="${TRIM_TEMP_LOGFILE:-/dev/stderr}"
 info() { echo "[uninstall_callback] $*"; }
 
 # 1. 停止服务
-if [ -x "${APPDEST}/cmd/main" ]; then
-  "${APPDEST}/cmd/main" stop || true
+if [ -x "$(dirname "$0")/main" ]; then
+  "$(dirname "$0")/main" stop || true
 fi
 
 # 2. 移除 sudoers 授权

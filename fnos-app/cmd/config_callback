@@ -15,7 +15,7 @@ RUN_USER="${TRIM_USERNAME:?TRIM_USERNAME 未设置}"
 RUN_GROUP="${TRIM_GROUPNAME:-$RUN_USER}"
 TEMPLOG="${TRIM_TEMP_LOGFILE:-/dev/stderr}"
 CONFIG_FILE="${PKGVAR}/config.json"
-MAIN="${APPDEST}/cmd/main"
+MAIN="$(dirname "$0")/main"
 
 fail() { echo "$*" >"$TEMPLOG"; echo "[config_callback] $*" >&2; exit 1; }
 info() { echo "[config_callback] $*"; }

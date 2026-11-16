@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.1.1] - 2026-11-16
+
+真机安装修复：
+
+- 修正安装后 helper/server 路径：FPK 中 `app/` 的内容解压到应用 `target` 根目录，
+  `app/server/x` 对应 `$TRIM_APPDEST/server/x`（而非 `.../app/server/x`）——安装时不再报
+  "helper 二进制缺失或不可执行"
+- 生命周期脚本相互调用改用 `$(dirname $0)/main`（`cmd/` 不在 `TRIM_APPDEST` 下）
+
 ## [0.1.0] - 2026-11-16
 
 首个迭代版本（未在真实 FNOS 真机验证前，不会发布为 1.0.0）。

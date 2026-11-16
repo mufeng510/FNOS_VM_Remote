@@ -4,7 +4,7 @@ set -u
 PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 export PATH
 
-MAIN="${TRIM_APPDEST}/cmd/main"
+MAIN="$(dirname "$0")/main"
 if [ -x "$MAIN" ]; then
   "$MAIN" stop || echo "[uninstall_init] WARN: cmd/main stop 返回非零（可能本就未运行）" >&2
 else

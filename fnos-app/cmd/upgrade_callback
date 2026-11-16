@@ -14,7 +14,7 @@ PKGVAR="${TRIM_PKGVAR:?TRIM_PKGVAR 未设置}"
 RUN_USER="${TRIM_USERNAME:?TRIM_USERNAME 未设置}"
 RUN_GROUP="${TRIM_GROUPNAME:-$RUN_USER}"
 TEMPLOG="${TRIM_TEMP_LOGFILE:-/dev/stderr}"
-HELPER_BIN="${APPDEST}/app/server/fnos-vm-remote-helper"
+HELPER_BIN="${APPDEST}/server/fnos-vm-remote-helper"
 
 info() { echo "[upgrade_callback] $*"; }
 

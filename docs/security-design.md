@@ -39,7 +39,7 @@ libvirtd（qemu:///system） → 仅 VM 3f1jeea2
 `/etc/sudoers.d/fnos-vm-remote`（安装时写入，0440，visudo 校验）：
 
 ```
-fnos-vm-remote ALL=(root) NOPASSWD: /var/apps/fnos-vm-remote/target/app/server/fnos-vm-remote-helper status, /var/apps/fnos-vm-remote/target/app/server/fnos-vm-remote-helper start, /var/apps/fnos-vm-remote/target/app/server/fnos-vm-remote-helper shutdown
+fnos-vm-remote ALL=(root) NOPASSWD: /var/apps/fnos-vm-remote/target/server/fnos-vm-remote-helper status, /var/apps/fnos-vm-remote/target/server/fnos-vm-remote-helper start, /var/apps/fnos-vm-remote/target/server/fnos-vm-remote-helper shutdown
 ```
 
 - 仅该用户、仅该绝对路径、仅三个固定参数组合

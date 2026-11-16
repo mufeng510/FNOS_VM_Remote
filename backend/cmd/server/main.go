@@ -31,10 +31,10 @@ func main() {
 		dataDir = v
 	}
 
-	// Helper 路径：默认 $TRIM_APPDEST/app/server/fnos-vm-remote-helper
-	helperPath := getenv("FNOS_VM_REMOTE_HELPER", "/var/apps/fnos-vm-remote/target/app/server/fnos-vm-remote-helper")
+	// Helper 路径：默认 $TRIM_APPDEST/server/fnos-vm-remote-helper
+	helperPath := getenv("FNOS_VM_REMOTE_HELPER", "/var/apps/fnos-vm-remote/target/server/fnos-vm-remote-helper")
 	if appDest := os.Getenv("TRIM_APPDEST"); appDest != "" && os.Getenv("FNOS_VM_REMOTE_HELPER") == "" {
-		helperPath = filepath.Join(appDest, "app", "server", "fnos-vm-remote-helper")
+		helperPath = filepath.Join(appDest, "server", "fnos-vm-remote-helper")
 	}
 
 	store := config.NewStore(dataDir)

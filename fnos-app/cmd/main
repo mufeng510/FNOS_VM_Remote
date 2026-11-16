@@ -11,8 +11,8 @@ PKGVAR="${TRIM_PKGVAR:?TRIM_PKGVAR 未设置（仅在 FNOS 生命周期中可用
 RUN_USER="${TRIM_USERNAME:?TRIM_USERNAME 未设置（仅在 FNOS 生命周期中可用）}"
 RUN_GROUP="${TRIM_GROUPNAME:-$RUN_USER}"
 
-SERVER_BIN="${APPDEST}/app/server/fnos-vm-remote-server"
-HELPER_BIN="${APPDEST}/app/server/fnos-vm-remote-helper"
+SERVER_BIN="${APPDEST}/server/fnos-vm-remote-server"
+HELPER_BIN="${APPDEST}/server/fnos-vm-remote-helper"
 PID_FILE="${PKGVAR}/app.pid"
 LOG_FILE="${PKGVAR}/info.log"
 CONFIG_FILE="${PKGVAR}/config.json"
