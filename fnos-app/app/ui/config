@@ -2,14 +2,17 @@
   ".url": {
     "fnos-vm-remote.main": {
       "title": "FNOS VM 遥控",
+      "desc": "Windows 虚拟机局域网遥控",
       "icon": "images/icon_{0}.png",
       "type": "url",
       "protocol": "http",
-      "port": "__FNOS_VM_REMOTE_PORT__",
+      "port": "${port}",
       "url": "/",
       "allUsers": false,
       "control": {
-        "accessPerm": "readonly"
+        "accessPerm": "editable",
+        "portPerm": "editable",
+        "pathPerm": "readonly"
       }
     }
   }

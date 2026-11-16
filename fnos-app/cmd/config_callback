@@ -3,8 +3,8 @@
 #   1. 以新端口原子写入 config.json（备份旧配置）
 #   2. 重启服务并等待其监听新端口
 #   3. 失败时回滚到旧配置并恢复旧端口监听
-# 说明：FNOS 不会为端口型入口替换 ${wizard_port}（已实测），
-#       因此入口端口由本脚本通过 render_entry 写入；入口与服务端口始终一致。
+# 说明：桌面入口使用保留字段名 "port" 并以 ${port} 占位（FNOS 原生联动）；
+#       本脚本只负责服务进程的端口切换与 config.json 写入。
 set -u
 PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 export PATH
@@ -20,14 +20,6 @@ MAIN="$(dirname "$0")/main"
 fail() { echo "$*" >"$TEMPLOG"; echo "[config_callback] $*" >&2; exit 1; }
 info() { echo "[config_callback] $*"; }
 
-# render_entry <port>：把已安装的桌面入口端口统一重写为指定数值。
-render_entry() {
-  local port="$1"
-  local entry_file="${APPDEST}/ui/config"
-  [ -f "$entry_file" ] || { echo "桌面入口文件缺失: ${entry_file}" >&2; return 1; }
-  sed -i -E "s/(\"port\"[[:space:]]*:[[:space:]]*\")[^\"]*(\")/\1${port}\2/" "$entry_file" || return 1
-}
-
 # health_probe <port>：通过 HTTP 探测本应用自身是否在监听（识别固定标记，不依赖 curl）
 health_probe() {
   local port="$1" resp
@@ -38,7 +30,7 @@ health_probe() {
   return 1
 }
 
-NEW_PORT="${wizard_port:-}"
+NEW_PORT="${port:-${wizard_port:-}}"
 case "$NEW_PORT" in (*[!0-9]*|'') fail "端口非法: ${NEW_PORT:-<空>}" ;; esac
 [ "$NEW_PORT" -ge 1 ] && [ "$NEW_PORT" -le 65535 ] || fail "端口范围必须为 1—65535: ${NEW_PORT}"
 
@@ -50,9 +42,8 @@ if [ -f "$CONFIG_FILE" ]; then
 fi
 
 if [ "$NEW_PORT" = "${CUR_PORT:-}" ]; then
-  info "端口未变化（${NEW_PORT}），确保服务处于运行状态并修正入口"
+  info "端口未变化（${NEW_PORT}），确保服务处于运行状态"
   "$MAIN" start || fail "端口未变化但服务启动失败，请检查 ${PKGVAR}/info.log"
-  render_entry "$NEW_PORT" || echo "[config_callback] WARN: 桌面入口渲染失败，桌面图标可能无法打开应用" >&2
   exit 0
 fi
 
@@ -76,7 +67,6 @@ if ! "$MAIN" start; then
   echo "[config_callback] 新端口 ${NEW_PORT} 服务启动失败，正在回滚…" >&2
   if [ -n "$BACKUP" ]; then
     mv "$BACKUP" "$CONFIG_FILE"
-    render_entry "${CUR_PORT:-8321}" || echo "[config_callback] ERROR: 回滚入口端口失败" >&2
     "$MAIN" start || echo "[config_callback] ERROR: 回滚后服务仍启动失败，请检查 ${PKGVAR}/info.log" >&2
   fi
   fail "端口切换失败，已回滚到原端口 ${CUR_PORT:-8321}。请查看日志排查。"
@@ -93,13 +83,9 @@ while [ "$n" -lt 80 ]; do
 done
 
 if [ "$n" -lt 80 ]; then
-  # 健康检查通过：写入入口端口
-  if render_entry "$NEW_PORT"; then
-    [ -n "$BACKUP" ] && rm -f "$BACKUP"
-    info "服务已在新端口 ${NEW_PORT} 监听并通过健康检查。访问地址: http://<FNOS-IP>:${NEW_PORT}/"
-    exit 0
-  fi
-  echo "[config_callback] 入口端口写入失败，正在回滚…" >&2
+  [ -n "$BACKUP" ] && rm -f "$BACKUP"
+  info "服务已在新端口 ${NEW_PORT} 监听并通过健康检查。访问地址: http://<FNOS-IP>:${NEW_PORT}/"
+  exit 0
 else
   echo "[config_callback] 服务已启动但未在 8 秒内监听新端口 ${NEW_PORT}，正在回滚…" >&2
 fi
@@ -112,6 +98,5 @@ else
   printf '{\n  "port": %s\n}\n' "${CUR_PORT:-8321}" > "$CONFIG_FILE"
 fi
 chmod 600 "$CONFIG_FILE"
-render_entry "${CUR_PORT:-8321}" || echo "[config_callback] ERROR: 回滚入口端口失败" >&2
 "$MAIN" start || echo "[config_callback] ERROR: 回滚后服务启动失败，请检查 ${PKGVAR}/info.log" >&2
 fail "端口切换失败，已回滚到原端口 ${CUR_PORT:-8321}。"

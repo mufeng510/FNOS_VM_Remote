@@ -4,7 +4,7 @@
     "items": [
       {
         "type": "text",
-        "field": "wizard_port",
+        "field": "port",
         "label": "服务端口",
         "initValue": "8321",
         "helpText": "修改后应用会自动重启并监听新端口，桌面入口地址随之更新；端口被占用或非法时会明确提示并保持原配置。范围 1—65535。",

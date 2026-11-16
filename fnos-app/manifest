@@ -1,5 +1,5 @@
 appname               = fnos-vm-remote
-version               = 0.2.1
+version               = 0.3.0
 display_name          = FNOS VM 遥控
 desc                  = 通过局域网远程控制 3f1jeea2 Windows 虚拟机：状态查询、开机、正常关机，配合 iPhone NFC 快捷指令使用。
 platform              = x86

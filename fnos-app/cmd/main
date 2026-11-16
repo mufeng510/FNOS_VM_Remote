@@ -27,7 +27,7 @@ read_port() {
   if [ -f "$CONFIG_FILE" ]; then
     p="$(grep -oE '"port"[[:space:]]*:[[:space:]]*[0-9]+' "$CONFIG_FILE" | head -n 1 | grep -oE '[0-9]+' | head -n 1)"
   fi
-  [ -z "$p" ] && p="${wizard_port:-8321}"
+  [ -z "$p" ] && p="${port:-${wizard_port:-8321}}"
   case "$p" in (*[!0-9]*|'') p=8321 ;; esac
   if [ "$p" -lt 1 ] || [ "$p" -gt 65535 ]; then p=8321; fi
   printf '%s' "$p"

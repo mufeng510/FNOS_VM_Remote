@@ -4,7 +4,7 @@
     "items": [
       {
         "type": "text",
-        "field": "wizard_port",
+        "field": "port",
         "label": "服务端口",
         "initValue": "8321",
         "helpText": "Web 管理界面和 HTTP API 的监听端口，范围 1—65535。请避开 fnOS 常见管理端口（如 5666、5667、5668）以及其他应用已占用的端口。",

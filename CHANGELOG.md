@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.3.0] - 2026-11-16
+
+入口改为 FNOS 保留字段名 `port`（`${port}` 占位，FNOS 原生替换）：
+
+- 实测 FNOS 不替换任意自定义占位符/硬编码端口：入口 URL 无法构建 → 桌面图标和
+  「打开」按钮点击无反应；同机 Lucky 等端口型应用均使用保留字段名 `port` + `${port}`
+- 安装/设置向导字段 `wizard_port` 更名为保留名 `port`；`wizard/config` 中修改端口后，桌面入口端口由 FNOS 原生更新
+- 删除 install/upgrade/config 回调中的入口渲染（render_entry），改由 FNOS 处理
+
 ## [0.2.1] - 2026-11-16
 
 桌面入口改为 `url` 类型：

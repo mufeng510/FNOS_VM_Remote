@@ -12,7 +12,7 @@ TEMPLOG="${TRIM_TEMP_LOGFILE:-/dev/stderr}"
 
 fail() { echo "$*" >"$TEMPLOG"; echo "[config_init] $*" >&2; exit 1; }
 
-NEW_PORT="${wizard_port:-}"
+NEW_PORT="${port:-${wizard_port:-}}"
 case "$NEW_PORT" in
   (*[!0-9]*|'') fail "端口非法: ${NEW_PORT:-<空>}（仅允许 1—65535 的整数）" ;;
 esac

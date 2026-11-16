@@ -43,9 +43,9 @@
 | 生命周期脚本 `run-as=root` + 服务降权（runuser→包用户） | 官方允许特权脚本"准备系统集成"；写 `/etc/sudoers.d` 需要 root；服务本体永不 root |
 | 不采用 libvirt 组授权 | 组权限=任意 VM 完整控制，违反最小权限 |
 | 端口默认 8321，`checkport=false` | 避开 fnOS 5666 系端口；占用检查由 `config_init`/`config_callback` 完成 |
-| 端口修改走 FNOS「设置」页（`wizard/config`，字段 `wizard_port`）；入口端口由生命周期脚本写入（`render_entry`） | 真机实测 FNOS 不替换 `${wizard_port}` 占位符，入口地址必须自行渲染；`config_init` 校验 + `config_callback` 重启验证回滚 |
-| 入口 `type=url, allUsers=false, accessPerm=readonly` | 端口型应用 FNOS 桌面 iframe 不提供可用嵌入（同机 Lucky/相册均用 url 实测）；iframe 仅保留给统一网关应用；仅管理员可见 |
-| 入口端口由生命周期脚本渲染；**不得**发 `X-Frame-Options: DENY` | 早期 DENY 导致桌面内嵌页空白（真机验证）；当前入口为 `url` 新标签页打开 |
+| 端口修改走 FNOS「设置」页（`wizard/config`，字段 `port`）；入口由 FNOS 原生 `${port}` 联动 | 保留字段名才会被 FNOS 替换（同机 Lucky 实证）；`config_init` 校验 + `config_callback` 重启验证回滚 |
+| 入口 `type=url` + 保留字段名 `port`（`${port}` 占位） | FNOS 只替换它认得的保留字段名 `port`（同机 Lucky 实测）；任意自定义占位符/硬编码端口都不生成 URL → 图标/打开按钮无反应；仅管理员可见 |
+| **不得**发 `X-Frame-Options: DENY`（历史空白页根因之一）；入口为 `type=url` 新标签页打开 | iframe 嵌入端口不可用（同机实测），当前入口不受 XFO 影响 |
 | 首次 Token：应用内"初始化"页生成（明文仅返回一次） | 用户明确反馈：不应到数据目录/SSH 找 `initial-token.txt`；服务端不落盘明文 |
 | `status`=`domstate` 实查 | 不信任缓存状态；starting/shutting_down 为"pending 操作 + domstate"推导，超时 2 分钟失效 |
 | 关机等待默认 120s，最长 300s（`?timeout=`） | iPhone 快捷指令友好；超时返回 `success:false` 且**不断电** |
@@ -87,7 +87,7 @@ python3 scripts/gen-icons.py
 ## 未验证项（截至 2026-11-16）
 
 - FNOS 真实设备：安装/升级/卸载、sudoers 生效——安装已真机验证（0.1.2 修复入口渲染）；sudoers/升级/卸载仍未验证
-- 已实测：FNOS 不替换 `${wizard_port}`，iframe 嵌入下 `X-Frame-Options: DENY` 导致空白页，生命周期脚本 root 执行
+- 已实测：FNOS 只替换保留字段名（`port`）的 `${xxx}` 占位，其余占位符/硬编码端口不生成入口 URL；iframe 嵌入下 `X-Frame-Options: DENY` 空白页（0.2.1 起入口为 `type=url` 新标签页打开）；生命周期脚本 root 执行
 - libvirt 9.0.0 实际 `domstate` 输出值（running/shut off/in shutdown 假设基于 libvirt 文档）
 - fnOS 生命周期脚本实际执行用户（是否 root）——真机表现为 root
 - Windows 正常关机耗时分布（默认超时 120s 为估计值）
