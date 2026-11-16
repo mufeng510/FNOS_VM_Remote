@@ -44,8 +44,8 @@
 | 不采用 libvirt 组授权 | 组权限=任意 VM 完整控制，违反最小权限 |
 | 端口默认 8321，`checkport=false` | 避开 fnOS 5666 系端口；占用检查由 `config_init`/`config_callback` 完成 |
 | 端口修改走 FNOS「设置」页（`wizard/config`，字段 `wizard_port`）；入口端口由生命周期脚本写入（`render_entry`） | 真机实测 FNOS 不替换 `${wizard_port}` 占位符，入口地址必须自行渲染；`config_init` 校验 + `config_callback` 重启验证回滚 |
-| 入口 `type=iframe, allUsers=false, accessPerm=readonly` | 控制面板仅管理员可见 |
-| X-Frame-Options **不得**设 DENY | FNOS 桌面经 iframe 嵌入，DENY 导致空白页（真机验证）；防护由 Token 鉴权把守 |
+| 入口 `type=url, allUsers=false, accessPerm=readonly` | 端口型应用 FNOS 桌面 iframe 不提供可用嵌入（同机 Lucky/相册均用 url 实测）；iframe 仅保留给统一网关应用；仅管理员可见 |
+| 入口端口由生命周期脚本渲染；**不得**发 `X-Frame-Options: DENY` | 早期 DENY 导致桌面内嵌页空白（真机验证）；当前入口为 `url` 新标签页打开 |
 | 首次 Token：应用内"初始化"页生成（明文仅返回一次） | 用户明确反馈：不应到数据目录/SSH 找 `initial-token.txt`；服务端不落盘明文 |
 | `status`=`domstate` 实查 | 不信任缓存状态；starting/shutting_down 为"pending 操作 + domstate"推导，超时 2 分钟失效 |
 | 关机等待默认 120s，最长 300s（`?timeout=`） | iPhone 快捷指令友好；超时返回 `success:false` 且**不断电** |
