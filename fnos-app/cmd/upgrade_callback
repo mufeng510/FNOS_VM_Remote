@@ -18,6 +18,15 @@ HELPER_BIN="${APPDEST}/server/fnos-vm-remote-helper"
 
 info() { echo "[upgrade_callback] $*"; }
 
+# render_entry <port>：把已安装的桌面入口端口统一重写为指定数值。
+# FNOS 升级可能重新解压包内入口（恢复占位符），升级后必须重新渲染。
+render_entry() {
+  local port="$1"
+  local entry_file="${APPDEST}/ui/config"
+  [ -f "$entry_file" ] || { echo "桌面入口文件缺失: ${entry_file}" >&2; return 1; }
+  sed -i -E "s/(\"port\"[[:space:]]*:[[:space:]]*\")[^\"]*(\")/\1${port}\2/" "$entry_file" || return 1
+}
+
 mkdir -p "$PKGVAR"
 
 # 1. 补齐 config.json
@@ -30,6 +39,15 @@ if [ ! -f "$CONFIG_FILE" ]; then
   info "config.json 缺失，已以默认/向导端口重建: ${PORT}"
 else
   info "config.json 已存在，保留用户端口设置"
+fi
+
+# 1.1 重新渲染桌面入口端口（升级可能恢复占位符）
+CUR_PORT="$(grep -oE '"port"[[:space:]]*:[[:space:]]*[0-9]+' "$CONFIG_FILE" | head -n 1 | grep -oE '[0-9]+' | head -n 1)"
+[ -z "$CUR_PORT" ] && CUR_PORT=8321
+if render_entry "$CUR_PORT"; then
+  info "桌面入口端口已渲染: ${CUR_PORT}"
+else
+  echo "[upgrade_callback] WARN: 桌面入口渲染失败，桌面图标可能无法打开应用" >&2
 fi
 
 # 2. 重新断言 sudoers（幂等）

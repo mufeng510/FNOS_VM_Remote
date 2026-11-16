@@ -19,6 +19,15 @@ HELPER_BIN="${APPDEST}/server/fnos-vm-remote-helper"
 fail() { echo "$*" >"$TEMPLOG"; echo "[install_callback] $*" >&2; exit 1; }
 info() { echo "[install_callback] $*"; }
 
+# render_entry <port>：把已安装的桌面入口端口统一重写为指定数值。
+# 实测 FNOS 不会替换 ${wizard_port} 等占位符，入口端口必须自行渲染。
+render_entry() {
+  local port="$1"
+  local entry_file="${APPDEST}/ui/config"
+  [ -f "$entry_file" ] || { echo "桌面入口文件缺失: ${entry_file}" >&2; return 1; }
+  sed -i -E "s/(\"port\"[[:space:]]*:[[:space:]]*\")[^\"]*(\")/\1${port}\2/" "$entry_file" || return 1
+}
+
 # ---------- 1. 目标虚拟机校验 ----------
 if [ "$(id -u)" = "0" ]; then
   virsh -c qemu:///system dominfo 3f1jeea2 >/dev/null 2>&1 \
@@ -98,6 +107,12 @@ EOF
 else
   fail "写入 sudoers 需要 root 权限（当前 uid=$(id -u)）。请确认应用以 root 生命周期模式安装。"
 fi
+
+# ---------- 5.1 渲染桌面入口端口（FNOS 不会替换占位符） ----------
+if ! render_entry "$PORT"; then
+  fail "写入桌面入口端口失败: ${APPDEST}/ui/config"
+fi
+info "桌面入口端口已写入: ${PORT}"
 
 # ---------- 6. 目录归属 ----------
 if [ "$(id -u)" = "0" ]; then

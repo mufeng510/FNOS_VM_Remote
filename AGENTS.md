@@ -43,7 +43,7 @@
 | 生命周期脚本 `run-as=root` + 服务降权（runuser→包用户） | 官方允许特权脚本"准备系统集成"；写 `/etc/sudoers.d` 需要 root；服务本体永不 root |
 | 不采用 libvirt 组授权 | 组权限=任意 VM 完整控制，违反最小权限 |
 | 端口默认 8321，`checkport=false` | 避开 fnOS 5666 系端口；占用检查由 `config_init`/`config_callback` 完成 |
-| 端口修改走 FNOS「设置」页（`wizard/config`，字段 `wizard_port`，入口 `${wizard_port}` 联动） | 官方联动方式，入口地址随端口自动更新；`config_init` 校验 + `config_callback` 重启验证回滚 |
+| 端口修改走 FNOS「设置」页（`wizard/config`，字段 `wizard_port`）；入口端口由生命周期脚本写入（`render_entry`） | 真机实测 FNOS 不替换 `${wizard_port}` 占位符，入口地址必须自行渲染；`config_init` 校验 + `config_callback` 重启验证回滚 |
 | 入口 `type=iframe, allUsers=false, accessPerm=readonly` | 控制面板仅管理员可见 |
 | 初始 Token 落 `initial-token.txt`(0600) | fnOS 安装向导无法展示任意动态文本；登录后"重新生成"会自动删除该文件 |
 | `status`=`domstate` 实查 | 不信任缓存状态；starting/shutting_down 为"pending 操作 + domstate"推导，超时 2 分钟失效 |
@@ -75,7 +75,7 @@ python3 scripts/gen-icons.py
 
 1. Go 单元/集成测试：`internal/vmmgmt`、`internal/config`、`internal/httpx`、`cmd/vmhelper`（假 virsh）。覆盖：鉴权、幂等、关机超时不断电、Token 轮换删初始文件、日志不含 Token、回滚逻辑由 shell 层验证。
 2. 本地模拟生命周期：stub `TRIM_*` 环境变量 + 假 virsh，验证 install/main/config_callback（含 9494→9610 占用回滚）/uninstall。
-3. **必须真机验证**（见 docs/install-uninstall.md）：FNOS 版本兼容、root 生命周期实际执行用户、`${wizard_port}` 入口重渲染、sudoers 生效、Windows 180s 正常关机、NFC 快捷指令。
+3. **必须真机验证**（见 docs/install-uninstall.md）：FNOS 版本兼容、root 生命周期实际执行用户、sudoers 生效、入口端口渲染（已在真机修复）、Windows 180s 正常关机、NFC 快捷指令。
 
 ## 版本策略
 
@@ -85,9 +85,10 @@ python3 scripts/gen-icons.py
 
 ## 未验证项（截至 2026-11-16）
 
-- FNOS 真实设备：安装/升级/卸载、权限机制、sudoers 生效、入口重渲染——均未验证
+- FNOS 真实设备：安装/升级/卸载、sudoers 生效——安装已真机验证（0.1.1 修复路径问题、端口 31011）；sudoers/升级/卸载仍未验证
+- 已实测：FNOS 不替换 `${wizard_port}`，生命周期脚本 root 执行、`runuser` 可用、包用户可经 `sudo -n` 的前提待核对（VM 控制待验证）
 - libvirt 9.0.0 实际 `domstate` 输出值（running/shut off/in shutdown 假设基于 libvirt 文档）
-- fnOS 生命周期脚本实际执行用户（是否 root）、`${wizard_port}` 是否真的重渲染入口
+- fnOS 生命周期脚本实际执行用户（是否 root）——真机表现为 root
 - Windows 正常关机耗时分布（默认超时 120s 为估计值）
 
 ## 知识库同步

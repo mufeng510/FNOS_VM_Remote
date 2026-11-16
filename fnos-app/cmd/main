@@ -33,8 +33,6 @@ read_port() {
   printf '%s' "$p"
 }
 
-# health_probe <port>：通过 HTTP 探测本应用自身是否在监听（识别固定标记）。
-# 不依赖 curl（FNOS 上不保证存在），用 bash /dev/tcp 实现。
 health_probe() {
   local port="$1" resp
   resp="$( { exec 3<>"/dev/tcp/127.0.0.1/${port}" && printf 'GET /api/v1/health HTTP/1.0\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n' >&3 && timeout 2 head -c 512 <&3; } 2>/dev/null )" || return 1
@@ -81,10 +79,23 @@ start_app() {
     return 1
   fi
   local pid=$!
+  # root 模式下 runuser 会 fork 子进程；记录真正的 server pid，确保 stop 能
+  # 通过 TERM 直接命中服务、is_running 判断准确。
+  local child=""
+  local n=0
+  while [ "$n" -lt 30 ]; do
+    child="$(pgrep -P "$pid" -f fnos-vm-remote-server | head -n 1 || true)"
+    [ -n "$child" ] && break
+    kill -0 "$pid" 2>/dev/null || break
+    sleep 0.1
+    n=$((n + 1))
+  done
+  [ -n "$child" ] || child="$pid"
+  pid="$child"
   echo "$pid" > "$PID_FILE"
 
   # 等待进程存活且健康检查通过（最多 8 秒）
-  local n=0
+  n=0
   while [ "$n" -lt 80 ]; do
     if ! kill -0 "$pid" 2>/dev/null; then
       log_msg "server died during startup; see $LOG_FILE"
