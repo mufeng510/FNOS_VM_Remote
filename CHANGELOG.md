@@ -1,5 +1,10 @@
 # Changelog
 
+## [Unreleased]
+
+- 应用内「NFC / Siri 快捷指令配置」帮助页自动填入本机真实访问地址（`/api/v1/vm/start|shutdown`），无需手抄；快捷指令示例可直接复制
+- 文档（README、API 文档、NFC 教程）补充真实环境地址示例
+
 ## [1.0.0] - 2026-11-16
 
 首个正式版本。

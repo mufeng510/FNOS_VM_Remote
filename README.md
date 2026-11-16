@@ -41,10 +41,12 @@
 ### API
 
 ```bash
-curl -H "Authorization: Bearer <TOKEN>" http://<FNOS-IP>:8321/api/v1/vm/status
-curl -X POST -H "Authorization: Bearer <TOKEN>" http://<FNOS-IP>:8321/api/v1/vm/start
-curl -X POST -H "Authorization: Bearer <TOKEN>" http://<FNOS-IP>:8321/api/v1/vm/shutdown
+curl -H "Authorization: Bearer <TOKEN>" http://192.168.31.13:31011/api/v1/vm/status
+curl -X POST -H "Authorization: Bearer <TOKEN>" http://192.168.31.13:31011/api/v1/vm/start
+curl -X POST -H "Authorization: Bearer <TOKEN>" http://192.168.31.13:31011/api/v1/vm/shutdown
 ```
+
+> 上面地址为示例设备（`192.168.31.13:31011`）；在应用内「NFC / Siri 快捷指令配置」帮助中会自动填入你的真实地址，可直接复制。
 
 完整 API 文档：[docs/api.md](docs/api.md)
 安全设计：[docs/security-design.md](docs/security-design.md)

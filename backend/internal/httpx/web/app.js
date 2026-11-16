@@ -113,6 +113,8 @@ async function refreshConfig() {
       $('#api-example').textContent =
         'curl -X POST ' + origin + '/api/v1/vm/start \\\n' +
         '  -H "Authorization: Bearer <你的Token>"';
+      $('#nfc-start-url').textContent = origin + '/api/v1/vm/start';
+      $('#nfc-shutdown-url').textContent = origin + '/api/v1/vm/shutdown';
     }
   } catch { /* 配置信息失败不阻塞主流程 */ }
 }

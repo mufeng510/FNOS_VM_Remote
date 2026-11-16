@@ -106,14 +106,14 @@
         <pre id="api-example" class="code"></pre>
       </details>
       <details class="help">
-        <summary>NFC 快捷指令配置</summary>
+        <summary>NFC / Siri 快捷指令配置（地址已为本机真实值）</summary>
         <ol>
-          <li>在 iPhone「快捷指令」App 中新建自动化 → 触发条件选「NFC」→ 扫描贴在开机/关机位置的标签。</li>
-          <li>添加「获取 URL 内容」动作，方法选 POST，URL 填 <code>http://&lt;FNOS局域网IP&gt;:&lt;端口&gt;/api/v1/vm/start</code>（关机标签用 <code>/api/v1/vm/shutdown</code>）。</li>
-          <li>添加请求头：<code>Authorization: Bearer &lt;你的 Token&gt;</code>。</li>
-          <li>添加「显示结果」展示返回 JSON，查看 success / message。</li>
+          <li>在 iPhone「快捷指令」App 新建快捷指令，命名「开机 Windows」：添加「获取 URL 内容」→ 方法选 POST → URL 填 <code id="nfc-start-url" class="mono">…</code>；关机指令 URL 填 <code id="nfc-shutdown-url" class="mono">…</code></li>
+          <li>同两条指令各自添加请求头：<code>Authorization: Bearer &lt;你的 Token&gt;</code>（Token 在本页下方"Token 管理"生成，仅显示一次）。</li>
+          <li>再分别添加「显示结果」展示返回 JSON，查看 success / message。</li>
+          <li>触发方式二选一或都用：①「自动化」→ NFC → 选对应标签 → 「运行快捷指令」→ 选择对应指令；② 快捷指令右上角「…」→「添加到 Siri」→ 录短语（如「开机 Windows」），直接对 Siri 说「嘿 Siri，开机 Windows」。</li>
         </ol>
-        <p class="muted small">完整中文教程见仓库 <code>docs/nfc-guide.md</code>。NFC 标签不存储 Token，仅作为触发器；快捷指令需处于可访问家庭局域网的网络环境。iOS 版本不同可能对 NFC 自动化的运行确认和解锁状态有不同要求，请以实际设备测试结果为准。</p>
+        <p class="muted small">以上地址已自动使用当前访问地址填入，可直接复制。完整中文教程见仓库 <code>docs/nfc-guide.md</code>。NFC 标签/Siri 短语都不存储 Token，仅作为触发器；快捷指令需处于可访问家庭局域网的网络环境。iOS 版本不同可能对 NFC 自动化的运行确认和解锁状态有不同要求，请以实际设备测试结果为准。</p>
       </details>
     </section>
 

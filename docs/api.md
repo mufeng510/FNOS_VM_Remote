@@ -168,11 +168,13 @@ Authorization: Bearer <TOKEN>
 
 单条日志：`{ "ts", "action", "result", "client_ip", ... }`，不记录 Token（含失败的）。
 
-## 快捷指令示例
+## 快捷指令示例（以实际设备地址替换）
 
 ```
-POST http://192.168.1.10:8321/api/v1/vm/start
+POST http://192.168.31.13:31011/api/v1/vm/start
 Authorization: Bearer 粘贴你的Token
 ```
+
+> 上述地址为示例设备；在应用内「NFC / Siri 快捷指令配置」帮助页中已自动填入你的真实地址，可直接复制。
 
 参见 [nfc-guide.md](nfc-guide.md)。
