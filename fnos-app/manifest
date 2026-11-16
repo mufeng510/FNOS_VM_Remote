@@ -1,0 +1,15 @@
+appname               = fnos-vm-remote
+version               = 0.1.0
+display_name          = FNOS VM 遥控
+desc                  = 通过局域网远程控制 3f1jeea2 Windows 虚拟机：状态查询、开机、正常关机，配合 iPhone NFC 快捷指令使用。
+platform              = x86
+source                = thirdparty
+maintainer            = mufeng510
+maintainer_url        = https://github.com/mufeng510/FNOS_VM_Remote
+distributor           = mufeng510
+distributor_url       = https://github.com/mufeng510/FNOS_VM_Remote
+desktop_uidir         = ui
+desktop_applaunchname = fnos-vm-remote.main
+service_port          = 8321
+checkport             = false
+ctl_stop              = true

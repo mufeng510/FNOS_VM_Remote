@@ -1,0 +1,20 @@
+# Go
+backend/bin/
+*.test
+*.out
+
+# 构建产物
+dist/
+*.fpk
+fnos-app/app/server/
+
+# fnpack / 本地工具
+.fnpack-cache/
+
+# 编辑器/系统
+.DS_Store
+.idea/
+.vscode/
+
+# 本地冒烟测试数据
+.scratch/

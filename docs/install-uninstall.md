@@ -1,0 +1,91 @@
+# 安装、卸载与真机验证
+
+> 本应用尚未在真实 FNOS 设备上完成端到端验证。下列步骤是**标准安装方式 + 真机必测清单**。任何涉及真实虚拟机的操作请只在确认无重要状态时执行，并确保 VM 有自动启动以外的恢复手段。
+
+## 一、安装前准备
+
+- FNOS 裸机（Debian 12 基础），x86_64
+- libvirt / virsh 9.0.0（系统自带，确认 `virsh -c qemu:///system domuuid 3f1jeea2` 输出与预期 UUID 一致）
+- 目标虚拟机：`3f1jeea2`，UUID `1ce21ce8-0bd1-4ab3-a9c0-064abf81381f`，autostart **关闭**
+- `sudo` 可用（FNOS 默认包含）
+- 一个空闲端口（默认 8321）
+
+## 二、通过应用中心安装（推荐）
+
+1. 下载 `fnos-vm-remote-vX.Y.Z.fpk`（来自 GitHub Release 或本地构建）。
+2. FNOS 应用中心 → 手动安装 →「未经经验证应用」安全提示 → 继续。
+3. 安装向导「服务配置」：
+   - 端口默认 `8321`；可修改为 1—65535 内空闲端口（非法/占用会被明确拦截）。
+   - 安装完成后按提示获取初始 Token（见下）。
+4. 安装完成后：
+   - 桌面出现「FNOS VM 遥控」图标（仅管理员可见），或应用中心 → 已安装 → 打开。
+   - 首次使用：按页面提示获取初始 Token 并登录。
+
+### 获取初始 Token
+
+初始 Token 在安装时随机生成，明文保存在 `initial-token.txt`（0600）：
+
+- FNOS 文件管理器：进入应用数据目录 `fnos-vm-remote`（应用中心 → 应用详情通常可见数据目录入口），打开 `initial-token.txt`；或
+- SSH：`sudo cat /vol1/@appdata/fnos-vm-remote/initial-token.txt`（卷号视存储而定，常见 `vol1`）
+
+登录后建议立即在「Token 管理」重新生成 Token（会自动删除 initial-token.txt）。
+
+## 三、升级
+
+- 应用中心 → 手动安装新版 `.fpk` 或通过升级流程。
+- 升级**保留**：服务端口、Token、日志；**绝不**修改虚拟机配置。
+- 升级后建议检查：应用可启动、端口不变、登录 Token 不变。
+
+## 四、卸载
+
+1. FNOS 应用中心 → 应用详情 → 卸载。
+2. 向导提供两种数据处理：
+   - **保留数据**（默认）：保留 Token/配置/日志，便于将来重装
+   - **删除所有应用数据**：删除全部应用数据（Token 失效）
+3. 卸载会：停止服务 → 删除 `/etc/sudoers.d/fnos-vm-remote` → 按选择清理/保留数据。
+4. 卸载**不会**删除虚拟机定义、磁盘文件，**不会**修改 autostart。
+
+## 五、真机验证清单（必做）
+
+### 安装与启动
+- [ ] FPK 安装成功，无错误提示
+- [ ] 应用启动/停止/状态在应用中心正常显示（「打开」= 运行，「启用」= 未运行——端口被占用时应为「启用」）
+- [ ] Web 页面能打开并显示虚拟机状态（此时为 `shut off`）
+- [ ] `sudo virsh -c qemu:///system dominfo 3f1jeea2` 确认 autostart 为禁用（安装前后各看一次）
+
+### 权限机制（关键）
+- [ ] `cat /etc/sudoers.d/fnos-vm-remote` 内容精确为 helper 三条命令
+- [ ] `sudo -l -U fnos-vm-remote` 显示仅三个 NOPASSWD 条目
+- [ ] `ps -o user= -p $(cat /var/apps/fnos-vm-remote/var/app.pid)` 显示包用户（非 root、非当前用户）
+- [ ] helper 拒绝非法子命令：`sudo -u fnos-vm-remote /var/apps/fnos-vm-remote/target/app/server/fnos-vm-remote-helper destroy` → 报错退出
+
+### 功能
+- [ ] 状态查询、开机、再次开机（返回已运行）、正常关机、再次关机（返回已关闭）
+- [ ] 关机超时不强制断电（可用一台平时快速关机的 VM 观察；不可用真实生产机测试 destroy 路径）
+- [ ] 日志页显示操作记录；日志中无 Token
+
+### 端口配置
+- [ ] 安装时改端口 → 入口与服务一致可访问
+- [ ] 应用中心「设置」改端口 → 应用重启、新地址可访问、桌面入口地址更新
+- [ ] 设置页填非法端口（0、65536、abc）→ 无法保存
+- [ ] 设置页填占用端口 → 明确错误提示
+- [ ] 升级后端口与 Token 保留
+
+### 生命周期
+- [ ] 应用停止/重启不影响正在运行的 Windows（确认 VM 继续运行）
+- [ ] 应用升级不丢配置；卸载后 VM 定义仍在（`virsh -c qemu:///system list --all`）
+- [ ] 卸载后 `ls /etc/sudoers.d/fnos-vm-remote` 不存在
+
+### 失败注入（可选）
+- [ ] 停止 libvirtd 后 API 返回明确错误（不崩溃）
+- [ ] `auth.json` 损坏时服务拒绝启动并给出明确信息
+
+## 六、问题排查
+
+| 现象 | 检查 |
+|---|---|
+| 应用中心显示「启用」 | 端口被占用：应用中心→设置改端口；或查看 `$TRIM_PKGVAR/info.log` |
+| 页面打开 502/连接失败 | `cmd/main status`；`info.log` 中服务是否崩溃 |
+| API 401 | Token 错误/已过期；重新登录；重新生成后脚本/快捷指令未同步 |
+| API 502 查询虚拟机失败 | `virsh -c qemu:///system dominfo 3f1jeea2`；sudoers 是否存在；helper 是否可执行 |
+| 关机超时 | Windows 是否卡在确认对话框/更新；观察 `domstate`；不要 destroy |

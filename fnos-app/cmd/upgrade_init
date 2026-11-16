@@ -1,0 +1,7 @@
+#!/bin/bash
+# FNOS VM Remote — 升级前处理。不停止/修改虚拟机，仅清理可能干扰升级的运行时标记。
+set -u
+export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+echo "[upgrade_init] FNOS VM Remote 升级开始：不会修改虚拟机配置"
+exit 0

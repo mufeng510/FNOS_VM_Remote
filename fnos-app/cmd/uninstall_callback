@@ -1,0 +1,40 @@
+#!/bin/bash
+# FNOS VM Remote — 卸载后清理：
+#   1. 停止服务（幂等）
+#   2. 移除 /etc/sudoers.d/fnos-vm-remote
+#   3. 按用户选择保留或删除应用数据（config.json / auth.json / logs / initial-token.txt）
+# 绝不删除虚拟机定义、磁盘文件，绝不修改虚拟机 autostart。
+set -u
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+export PATH
+
+APPDEST="${TRIM_APPDEST:?TRIM_APPDEST 未设置}"
+PKGVAR="${TRIM_PKGVAR:?TRIM_PKGVAR 未设置}"
+TEMPLOG="${TRIM_TEMP_LOGFILE:-/dev/stderr}"
+
+info() { echo "[uninstall_callback] $*"; }
+
+# 1. 停止服务
+if [ -x "${APPDEST}/cmd/main" ]; then
+  "${APPDEST}/cmd/main" stop || true
+fi
+
+# 2. 移除 sudoers 授权
+if [ "$(id -u)" = "0" ] && [ -f /etc/sudoers.d/fnos-vm-remote ]; then
+  rm -f /etc/sudoers.d/fnos-vm-remote && info "已移除 sudoers 授权"
+fi
+
+# 3. 数据保留/删除
+DELETE_DATA="${wizard_delete_data:-false}"
+if [ "$DELETE_DATA" = "true" ]; then
+  if [ -d "$PKGVAR" ]; then
+    # 仅清空应用数据目录内的文件，绝不触碰虚拟机
+    find "$PKGVAR" -mindepth 1 -maxdepth 1 -exec rm -rf -- {} +
+    info "已删除应用数据（Token、配置、日志）"
+  fi
+else
+  info "已保留应用数据于 ${PKGVAR}（可将来重装恢复）"
+fi
+
+echo "[uninstall_callback] 卸载完成。虚拟机未被修改。" >&2
+exit 0

@@ -1,0 +1,108 @@
+#!/bin/bash
+# FNOS VM Remote — 安装后初始化：
+#   1. 校验目标虚拟机（root 上下文）
+#   2. 校验向导端口并写入 config.json（已存在则保留）
+#   3. 首次生成高强度随机 Token（仅首次；已存在则保留）
+#   4. 配置 /etc/sudoers.d/fnos-vm-remote，使包用户仅可执行受限 helper
+#   5. 目录归属应用包用户
+set -u
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+export PATH
+
+APPDEST="${TRIM_APPDEST:?TRIM_APPDEST 未设置}"
+PKGVAR="${TRIM_PKGVAR:?TRIM_PKGVAR 未设置}"
+RUN_USER="${TRIM_USERNAME:?TRIM_USERNAME 未设置}"
+RUN_GROUP="${TRIM_GROUPNAME:-$RUN_USER}"
+TEMPLOG="${TRIM_TEMP_LOGFILE:-/dev/stderr}"
+HELPER_BIN="${APPDEST}/app/server/fnos-vm-remote-helper"
+
+fail() { echo "$*" >"$TEMPLOG"; echo "[install_callback] $*" >&2; exit 1; }
+info() { echo "[install_callback] $*"; }
+
+# ---------- 1. 目标虚拟机校验 ----------
+if [ "$(id -u)" = "0" ]; then
+  virsh -c qemu:///system dominfo 3f1jeea2 >/dev/null 2>&1 \
+    || fail "qemu:///system 中未找到虚拟机 3f1jeea2。"
+  uuid="$(virsh -c qemu:///system domuuid 3f1jeea2 2>/dev/null | tr -d '[:space:]')"
+  [ "$uuid" = "1ce21ce8-0bd1-4ab3-a9c0-064abf81381f" ] \
+    || fail "虚拟机 UUID 不匹配（${uuid:-查询失败}），已中止。"
+  info "目标虚拟机校验通过"
+else
+  echo "[install_callback] WARN: 非 root 上下文，跳过虚拟机校验" >&2
+fi
+
+# ---------- 2. 端口校验 ----------
+PORT="${wizard_port:-8321}"
+case "$PORT" in (*[!0-9]*|'') fail "端口非法: ${PORT}" ;; esac
+if [ "$PORT" -lt 1 ] || [ "$PORT" -gt 65535 ]; then
+  fail "端口范围必须为 1—65535: ${PORT}"
+fi
+if (echo > "/dev/tcp/127.0.0.1/${PORT}") >/dev/null 2>&1; then
+  fail "端口 ${PORT} 已被占用，请修改端口后重新安装/保存。"
+fi
+info "端口 ${PORT} 可用"
+
+# ---------- 3. 写入 config.json（已存在则保留） ----------
+mkdir -p "$PKGVAR"
+CONFIG_FILE="${PKGVAR}/config.json"
+if [ -f "$CONFIG_FILE" ]; then
+  info "config.json 已存在，保留原配置（升级/重装不覆盖用户设置）"
+else
+  printf '{\n  "port": %s\n}\n' "$PORT" > "${CONFIG_FILE}.tmp" && mv "${CONFIG_FILE}.tmp" "$CONFIG_FILE"
+  chmod 600 "$CONFIG_FILE"
+  info "已写入 config.json (port=${PORT})"
+fi
+
+# ---------- 4. 首次生成 Token ----------
+AUTH_FILE="${PKGVAR}/auth.json"
+if [ -f "$AUTH_FILE" ]; then
+  info "auth.json 已存在，保留原 Token"
+else
+  TOKEN="$(head -c 36 /dev/urandom | base64 | tr '+/' '-_' | tr -d '=')"
+  if [ "${#TOKEN}" -lt 32 ]; then
+    fail "Token 生成失败（熵不足）"
+  fi
+  HASH="$(printf %s "$TOKEN" | sha256sum | awk '{print $1}')"
+  NOW="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  printf '{\n  "token_sha256": "%s",\n  "created_at": "%s",\n  "updated_at": "%s"\n}\n' \
+    "$HASH" "$NOW" "$NOW" > "$AUTH_FILE"
+  printf '%s\n' "$TOKEN" > "${PKGVAR}/initial-token.txt"
+  chmod 600 "$AUTH_FILE" "${PKGVAR}/initial-token.txt"
+  info "已生成初始 Token（见 ${PKGVAR}/initial-token.txt，0600 权限）"
+fi
+
+# ---------- 5. sudoers 授权（受限 helper） ----------
+if [ ! -x "$HELPER_BIN" ]; then
+  fail "helper 二进制缺失或不可执行: ${HELPER_BIN}"
+fi
+SUDOERS_FILE="/etc/sudoers.d/fnos-vm-remote"
+if ! command -v sudo >/dev/null 2>&1 || [ ! -d /etc/sudoers.d ]; then
+  fail "系统缺少 sudo 或 /etc/sudoers.d 目录，无法授予受限控制权限。"
+fi
+if [ "$(id -u)" = "0" ]; then
+  TMP_SUDOERS="${SUDOERS_FILE}.tmp.$$"
+  cat > "$TMP_SUDOERS" <<EOF
+# FNOS VM Remote：允许应用包用户仅以 root 执行受限 helper（固定虚拟机、固定子命令）
+$RUN_USER ALL=(root) NOPASSWD: $HELPER_BIN status, $HELPER_BIN start, $HELPER_BIN shutdown
+EOF
+  chmod 0440 "$TMP_SUDOERS"
+  if command -v visudo >/dev/null 2>&1; then
+    if ! visudo -cf "$TMP_SUDOERS" >/dev/null 2>&1; then
+      rm -f "$TMP_SUDOERS"
+      fail "sudoers 校验未通过，已中止安装。"
+    fi
+  fi
+  mv "$TMP_SUDOERS" "$SUDOERS_FILE"
+  chmod 0440 "$SUDOERS_FILE"
+  info "sudoers 已配置: ${SUDOERS_FILE}（仅 status/start/shutdown，禁止其他命令）"
+else
+  fail "写入 sudoers 需要 root 权限（当前 uid=$(id -u)）。请确认应用以 root 生命周期模式安装。"
+fi
+
+# ---------- 6. 目录归属 ----------
+if [ "$(id -u)" = "0" ]; then
+  chown -R "$RUN_USER:$RUN_GROUP" "$PKGVAR"
+fi
+
+info "安装初始化完成。服务由 cmd/main 启动；VM 不会随应用启动而开机。"
+exit 0

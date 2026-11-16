@@ -1,0 +1,94 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  FNPACK_VERSION: 1.2.3
+  FNPACK_SHA256: 54b97fa7b70968c4d05c79840f5daeff508957d0bb2062fdb0376d00d9615c93
+
+jobs:
+  release:
+    name: 构建并发布 GitHub Release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 校验 Tag 与 manifest 版本一致
+        run: ./scripts/check-version.sh "${GITHUB_REF_NAME}"
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: backend/go.mod
+
+      - name: 下载并校验 fnpack
+        run: |
+          curl -fsSL "https://static2.fnnas.com/fnpack/fnpack-${FNPACK_VERSION}-linux-amd64" -o /tmp/fnpack
+          echo "${FNPACK_SHA256}  /tmp/fnpack" | sha256sum -c -
+          chmod +x /tmp/fnpack
+          /tmp/fnpack --help >/dev/null
+
+      - name: 完整检查与构建
+        working-directory: backend
+        run: |
+          files=$(gofmt -l .)
+          if [ -n "$files" ]; then echo "gofmt 未通过: $files"; exit 1; fi
+          go vet ./...
+          go test ./... -count=1
+
+      - name: 构建 FPK
+        env:
+          FNPACK: /tmp/fnpack
+          SKIP_TESTS: "1"
+        run: ./scripts/build-fpk.sh dist
+
+      - name: 校验 FPK 结构与版本
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          ./scripts/check-fpk.sh "dist/fnos-vm-remote-v${VERSION}.fpk" "${VERSION}"
+
+      - name: 校验文件名与版本一致
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          test -f "dist/fnos-vm-remote-v${VERSION}.fpk"
+          echo "安装包: dist/fnos-vm-remote-v${VERSION}.fpk"
+
+      - name: 确认 Release 不存在（不得覆盖已有正式版本）
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "${GITHUB_REF_NAME}" >/dev/null 2>&1; then
+            echo "Release ${GITHUB_REF_NAME} 已存在，拒绝覆盖" >&2
+            exit 1
+          fi
+
+      - name: 生成 Release Notes 并创建 Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          FPK="dist/fnos-vm-remote-v${VERSION}.fpk"
+          NOTES_FILE="docs/release-templates/release-body.md"
+          # 渲染模板：替换版本占位符
+          sed -e "s/__VERSION__/${VERSION}/g" "$NOTES_FILE" > /tmp/release-notes.md
+          gh release create "${GITHUB_REF_NAME}" "$FPK" \
+            --title "fnos-vm-remote v${VERSION}" \
+            --notes-file /tmp/release-notes.md \
+            --generate-notes
+
+      - name: 验证附件已上传
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          gh release view "${GITHUB_REF_NAME}" --json assets --jq '.assets[].name' | grep -qx "fnos-vm-remote-v${VERSION}.fpk"

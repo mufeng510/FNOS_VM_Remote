@@ -1,0 +1,21 @@
+[
+  {
+    "stepTitle": "卸载 FNOS VM 遥控",
+    "items": [
+      {
+        "type": "tips",
+        "helpText": "卸载不会删除虚拟机，也不会修改虚拟机的 autostart 配置。应用只会删除自身的服务文件与（按下方选择）数据目录内容。"
+      },
+      {
+        "type": "radio",
+        "field": "wizard_delete_data",
+        "label": "数据处理方式",
+        "initValue": "false",
+        "options": [
+          { "label": "保留数据（Token、配置、日志，便于将来重新安装）", "value": "false" },
+          { "label": "删除所有应用数据（Token 将失效，不可恢复）", "value": "true" }
+        ]
+      }
+    ]
+  }
+]

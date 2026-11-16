@@ -1,0 +1,42 @@
+#!/bin/bash
+# FNOS VM Remote — 安装前检查。失败时退出非零，FNOS 会中止安装。
+set -u
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+export PATH
+
+TEMPLOG="${TRIM_TEMP_LOGFILE:-/dev/stderr}"
+fail() { echo "$*" >"$TEMPLOG"; echo "[install_init] $*" >&2; exit 1; }
+warn() { echo "[install_init] WARN: $*" >&2; }
+
+# 1. 架构：本应用仅构建 x86_64
+arch="$(uname -m 2>/dev/null || echo unknown)"
+case "$arch" in
+  x86_64|amd64) ;;
+  *) fail "不支持的架构: ${arch}（本应用仅支持 x86_64）" ;;
+esac
+
+# 2. virsh 必须可用
+if ! command -v virsh >/dev/null 2>&1; then
+  fail "未找到 virsh（libvirt-clients）。请确认 FNOS 已安装 libvirt。"
+fi
+
+# 3. sudo 必须可用（用于受限 helper 授权）
+if ! command -v sudo >/dev/null 2>&1; then
+  fail "未找到 sudo。本应用需要 sudo 来为应用包用户授权受限的虚拟机控制 helper。"
+fi
+
+# 4. 实机 root 上下文下校验目标虚拟机存在且 UUID 匹配
+if [ "$(id -u)" = "0" ]; then
+  if ! virsh -c qemu:///system dominfo 3f1jeea2 >/dev/null 2>&1; then
+    fail "qemu:///system 中未找到虚拟机 3f1jeea2。本应用仅控制该虚拟机。"
+  fi
+  uuid="$(virsh -c qemu:///system domuuid 3f1jeea2 2>/dev/null | tr -d '[:space:]')"
+  if [ "$uuid" != "1ce21ce8-0bd1-4ab3-a9c0-064abf81381f" ]; then
+    fail "虚拟机 3f1jeea2 的 UUID（${uuid:-查询失败}）与预期不符，已中止安装。"
+  fi
+  echo "[install_init] 目标虚拟机校验通过 (UUID ${uuid})"
+else
+  warn "非 root 上下文，跳过目标虚拟机校验（install_callback 中将再次校验）"
+fi
+
+exit 0

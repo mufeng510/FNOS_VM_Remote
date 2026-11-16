@@ -1,0 +1,16 @@
+{
+  ".url": {
+    "fnos-vm-remote.main": {
+      "title": "FNOS VM 遥控",
+      "icon": "images/icon_{0}.png",
+      "type": "iframe",
+      "protocol": "http",
+      "port": "${wizard_port}",
+      "url": "/",
+      "allUsers": false,
+      "control": {
+        "accessPerm": "readonly"
+      }
+    }
+  }
+}

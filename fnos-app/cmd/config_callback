@@ -1,0 +1,94 @@
+#!/bin/bash
+# FNOS VM Remote — 配置变更（应用中心「设置」页）后执行：
+#   1. 以新端口原子写入 config.json（备份旧配置）
+#   2. 重启服务并等待其监听新端口
+#   3. 失败时回滚到旧配置并恢复旧端口监听
+# 说明：FNOS 会在"设置"保存时以 ${wizard_port} 重渲染 app/ui/config 入口端口，
+#       因此入口地址与服务端口保持一致。
+set -u
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+export PATH
+
+APPDEST="${TRIM_APPDEST:?TRIM_APPDEST 未设置}"
+PKGVAR="${TRIM_PKGVAR:?TRIM_PKGVAR 未设置}"
+RUN_USER="${TRIM_USERNAME:?TRIM_USERNAME 未设置}"
+RUN_GROUP="${TRIM_GROUPNAME:-$RUN_USER}"
+TEMPLOG="${TRIM_TEMP_LOGFILE:-/dev/stderr}"
+CONFIG_FILE="${PKGVAR}/config.json"
+MAIN="${APPDEST}/cmd/main"
+
+fail() { echo "$*" >"$TEMPLOG"; echo "[config_callback] $*" >&2; exit 1; }
+info() { echo "[config_callback] $*"; }
+
+# health_probe <port>：通过 HTTP 探测本应用自身是否在监听（识别固定标记，不依赖 curl）
+health_probe() {
+  local port="$1" resp
+  resp="$( { exec 3<>"/dev/tcp/127.0.0.1/${port}" && printf 'GET /api/v1/health HTTP/1.0\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n' >&3 && timeout 2 head -c 512 <&3; } 2>/dev/null )" || return 1
+  case "$resp" in
+    *'"app":"fnos-vm-remote"'*|*'"app": "fnos-vm-remote"'*) return 0 ;;
+  esac
+  return 1
+}
+
+NEW_PORT="${wizard_port:-}"
+case "$NEW_PORT" in (*[!0-9]*|'') fail "端口非法: ${NEW_PORT:-<空>}" ;; esac
+[ "$NEW_PORT" -ge 1 ] && [ "$NEW_PORT" -le 65535 ] || fail "端口范围必须为 1—65535: ${NEW_PORT}"
+
+mkdir -p "$PKGVAR"
+
+CUR_PORT=""
+if [ -f "$CONFIG_FILE" ]; then
+  CUR_PORT="$(grep -oE '"port"[[:space:]]*:[[:space:]]*[0-9]+' "$CONFIG_FILE" | head -n 1 | grep -oE '[0-9]+' | head -n 1)"
+fi
+
+if [ "$NEW_PORT" = "${CUR_PORT:-}" ]; then
+  info "端口未变化（${NEW_PORT}），确保服务处于运行状态"
+  "$MAIN" start || fail "端口未变化但服务启动失败，请检查 ${PKGVAR}/info.log"
+  exit 0
+fi
+
+# 1. 备份 + 原子写入新配置
+BACKUP=""
+if [ -f "$CONFIG_FILE" ]; then
+  BACKUP="${CONFIG_FILE}.bak.$$"
+  cp -p "$CONFIG_FILE" "$BACKUP" || fail "备份旧配置失败"
+fi
+printf '{\n  "port": %s\n}\n' "$NEW_PORT" > "${CONFIG_FILE}.tmp" && mv "${CONFIG_FILE}.tmp" "$CONFIG_FILE"
+chmod 600 "$CONFIG_FILE"
+[ "$(id -u)" = "0" ] && chown "$RUN_USER:$RUN_GROUP" "$CONFIG_FILE"
+info "已写入新端口 ${NEW_PORT}（原 ${CUR_PORT:-未设置}）"
+
+# 2. 重启服务
+if ! "$MAIN" stop; then
+  echo "[config_callback] WARN: 停止旧服务失败，继续尝试启动" >&2
+fi
+if ! "$MAIN" start; then
+  # 3a. 启动失败：回滚配置并恢复旧端口
+  echo "[config_callback] 新端口 ${NEW_PORT} 服务启动失败，正在回滚…" >&2
+  if [ -n "$BACKUP" ]; then
+    mv "$BACKUP" "$CONFIG_FILE"
+    "$MAIN" start || echo "[config_callback] ERROR: 回滚后服务仍启动失败，请检查 ${PKGVAR}/info.log" >&2
+  fi
+  fail "端口切换失败，已回滚到原端口 ${CUR_PORT:-8321}。请查看日志排查。"
+fi
+
+# 3b. 等待新端口上的本应用健康（最多 8 秒）
+n=0
+while [ "$n" -lt 80 ]; do
+  if health_probe "$NEW_PORT"; then
+    [ -n "$BACKUP" ] && rm -f "$BACKUP"
+    info "服务已在新端口 ${NEW_PORT} 监听并通过健康检查。访问地址: http://<FNOS-IP>:${NEW_PORT}/"
+    exit 0
+  fi
+  sleep 0.1
+  n=$((n + 1))
+done
+
+# 4. 超时回滚
+echo "[config_callback] 服务已启动但未在 8 秒内监听新端口 ${NEW_PORT}，正在回滚…" >&2
+"$MAIN" stop || true
+if [ -n "$BACKUP" ]; then
+  mv "$BACKUP" "$CONFIG_FILE"
+  "$MAIN" start || echo "[config_callback] ERROR: 回滚后服务启动失败，请检查 ${PKGVAR}/info.log" >&2
+fi
+fail "端口切换超时，已回滚到原端口 ${CUR_PORT:-8321}。"

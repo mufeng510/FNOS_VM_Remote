@@ -1,0 +1,136 @@
+#!/bin/bash
+# FNOS VM Remote — 应用进程启停与状态检查。
+# 在 FNOS 生命周期中执行。权限：以 root（root 模式生命周期脚本）或应用包用户运行；
+# VM 操作始终经 sudo -n 调用受限 helper；服务本体始终降权为应用包用户。
+set -u
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+export PATH
+
+APPDEST="${TRIM_APPDEST:?TRIM_APPDEST 未设置（仅在 FNOS 生命周期中可用）}"
+PKGVAR="${TRIM_PKGVAR:?TRIM_PKGVAR 未设置（仅在 FNOS 生命周期中可用）}"
+RUN_USER="${TRIM_USERNAME:?TRIM_USERNAME 未设置（仅在 FNOS 生命周期中可用）}"
+RUN_GROUP="${TRIM_GROUPNAME:-$RUN_USER}"
+
+SERVER_BIN="${APPDEST}/app/server/fnos-vm-remote-server"
+HELPER_BIN="${APPDEST}/app/server/fnos-vm-remote-helper"
+PID_FILE="${PKGVAR}/app.pid"
+LOG_FILE="${PKGVAR}/info.log"
+CONFIG_FILE="${PKGVAR}/config.json"
+
+log_msg() {
+  mkdir -p "$PKGVAR" 2>/dev/null || true
+  echo "$(date '+%Y-%m-%d %H:%M:%S') - $*" >> "$LOG_FILE" 2>/dev/null || true
+}
+
+read_port() {
+  local p=""
+  if [ -f "$CONFIG_FILE" ]; then
+    p="$(grep -oE '"port"[[:space:]]*:[[:space:]]*[0-9]+' "$CONFIG_FILE" | head -n 1 | grep -oE '[0-9]+' | head -n 1)"
+  fi
+  [ -z "$p" ] && p="${wizard_port:-8321}"
+  case "$p" in (*[!0-9]*|'') p=8321 ;; esac
+  if [ "$p" -lt 1 ] || [ "$p" -gt 65535 ]; then p=8321; fi
+  printf '%s' "$p"
+}
+
+# health_probe <port>：通过 HTTP 探测本应用自身是否在监听（识别固定标记）。
+# 不依赖 curl（FNOS 上不保证存在），用 bash /dev/tcp 实现。
+health_probe() {
+  local port="$1" resp
+  resp="$( { exec 3<>"/dev/tcp/127.0.0.1/${port}" && printf 'GET /api/v1/health HTTP/1.0\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n' >&3 && timeout 2 head -c 512 <&3; } 2>/dev/null )" || return 1
+  case "$resp" in
+    *'"app":"fnos-vm-remote"'*|*'"app": "fnos-vm-remote"'*) return 0 ;;
+  esac
+  return 1
+}
+
+is_running() {
+  [ -f "$PID_FILE" ] || return 1
+  local pid port
+  pid="$(head -n 1 "$PID_FILE" | tr -d '[:space:]')"
+  [ -n "$pid" ] || return 1
+  kill -0 "$pid" 2>/dev/null || return 1
+  # 进程存活且健康检查通过才算运行中
+  port="$(read_port)"
+  health_probe "$port"
+}
+
+start_app() {
+  if is_running; then
+    log_msg "server already running (pid $(cat "$PID_FILE"))"
+    return 0
+  fi
+  if [ ! -x "$SERVER_BIN" ]; then
+    echo "服务二进制不存在: $SERVER_BIN" >&2
+    echo "服务二进制不存在: $SERVER_BIN" > "${TRIM_TEMP_LOGFILE:-/dev/null}" 2>/dev/null || true
+    return 1
+  fi
+  mkdir -p "$PKGVAR"
+  [ "$(id -u)" = "0" ] && { chown -R "$RUN_USER:$RUN_GROUP" "$PKGVAR" || true; }
+
+  local port
+  port="$(read_port)"
+  log_msg "Starting fnos-vm-remote-server on 0.0.0.0:${port} (run as ${RUN_USER}) ..."
+
+  if [ "$(id -u)" = "0" ]; then
+    runuser -u "$RUN_USER" -- env FNOS_VM_REMOTE_DATA="$PKGVAR" FNOS_VM_REMOTE_PORT="$port" FNOS_VM_REMOTE_HELPER="$HELPER_BIN" "$SERVER_BIN" >>"$LOG_FILE" 2>&1 &
+  elif [ "$(id -un)" = "$RUN_USER" ]; then
+    env FNOS_VM_REMOTE_DATA="$PKGVAR" FNOS_VM_REMOTE_PORT="$port" FNOS_VM_REMOTE_HELPER="$HELPER_BIN" "$SERVER_BIN" >>"$LOG_FILE" 2>&1 &
+  else
+    echo "cmd/main 必须以 root 或 ${RUN_USER} 运行（当前: $(id -un)）" >&2
+    return 1
+  fi
+  local pid=$!
+  echo "$pid" > "$PID_FILE"
+
+  # 等待进程存活且健康检查通过（最多 8 秒）
+  local n=0
+  while [ "$n" -lt 80 ]; do
+    if ! kill -0 "$pid" 2>/dev/null; then
+      log_msg "server died during startup; see $LOG_FILE"
+      rm -f "$PID_FILE"
+      echo "服务启动后立即退出，请查看日志: $LOG_FILE" >&2
+      echo "服务启动后立即退出，请查看日志: $LOG_FILE" > "${TRIM_TEMP_LOGFILE:-/dev/null}" 2>/dev/null || true
+      return 1
+    fi
+    if health_probe "$port"; then
+      log_msg "server healthy (${n}x0.1s)"
+      return 0
+    fi
+    sleep 0.1
+    n=$((n + 1))
+  done
+  log_msg "WARN: server did not become healthy in 8s; leaving it running (pid $pid)"
+  return 0
+}
+
+stop_app() {
+  log_msg "Stopping fnos-vm-remote-server ..."
+  [ -f "$PID_FILE" ] || { log_msg "no pid file"; return 0; }
+  local pid
+  pid="$(head -n 1 "$PID_FILE" | tr -d '[:space:]')"
+  if [ -z "$pid" ] || ! kill -0 "$pid" 2>/dev/null; then
+    rm -f "$PID_FILE"
+    return 0
+  fi
+  kill -TERM "$pid" 2>/dev/null || true
+  local n=0
+  while [ "$n" -lt 80 ] && kill -0 "$pid" 2>/dev/null; do
+    sleep 0.1
+    n=$((n + 1))
+  done
+  if kill -0 "$pid" 2>/dev/null; then
+    log_msg "TERM timeout; sending KILL to $pid"
+    kill -KILL "$pid" 2>/dev/null || true
+    sleep 0.2
+  fi
+  rm -f "$PID_FILE"
+  return 0
+}
+
+case "${1:-}" in
+  start)  start_app ;;
+  stop)   stop_app ;;
+  status) if is_running; then exit 0; else rm -f "$PID_FILE"; exit 3; fi ;;
+  *)      echo "usage: $0 {start|stop|status}" >&2; exit 2 ;;
+esac

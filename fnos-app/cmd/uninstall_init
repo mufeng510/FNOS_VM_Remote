@@ -1,0 +1,13 @@
+#!/bin/bash
+# FNOS VM Remote — 卸载前：停止应用服务（不影响虚拟机）。
+set -u
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+export PATH
+
+MAIN="${TRIM_APPDEST}/cmd/main"
+if [ -x "$MAIN" ]; then
+  "$MAIN" stop || echo "[uninstall_init] WARN: cmd/main stop 返回非零（可能本就未运行）" >&2
+else
+  echo "[uninstall_init] WARN: 未找到 $MAIN，跳过停止" >&2
+fi
+exit 0

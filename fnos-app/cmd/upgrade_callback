@@ -1,0 +1,61 @@
+#!/bin/bash
+# FNOS VM Remote — 升级后恢复：
+#   1. 保留用户配置（不动 config.json / auth.json / 日志）
+#   2. 补齐 config.json（缺失时以默认端口重建）
+#   3. 重新断言 sudoers（修复可能的漂移/损坏）
+#   4. 目录归属应用包用户
+# 绝不触碰虚拟机（含 autostart），绝不删除用户数据。
+set -u
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+export PATH
+
+APPDEST="${TRIM_APPDEST:?TRIM_APPDEST 未设置}"
+PKGVAR="${TRIM_PKGVAR:?TRIM_PKGVAR 未设置}"
+RUN_USER="${TRIM_USERNAME:?TRIM_USERNAME 未设置}"
+RUN_GROUP="${TRIM_GROUPNAME:-$RUN_USER}"
+TEMPLOG="${TRIM_TEMP_LOGFILE:-/dev/stderr}"
+HELPER_BIN="${APPDEST}/app/server/fnos-vm-remote-helper"
+
+info() { echo "[upgrade_callback] $*"; }
+
+mkdir -p "$PKGVAR"
+
+# 1. 补齐 config.json
+CONFIG_FILE="${PKGVAR}/config.json"
+if [ ! -f "$CONFIG_FILE" ]; then
+  PORT="${wizard_port:-8321}"
+  case "$PORT" in (*[!0-9]*|'') PORT=8321 ;; esac
+  printf '{\n  "port": %s\n}\n' "$PORT" > "${CONFIG_FILE}.tmp" && mv "${CONFIG_FILE}.tmp" "$CONFIG_FILE"
+  chmod 600 "$CONFIG_FILE"
+  info "config.json 缺失，已以默认/向导端口重建: ${PORT}"
+else
+  info "config.json 已存在，保留用户端口设置"
+fi
+
+# 2. 重新断言 sudoers（幂等）
+if [ "$(id -u)" = "0" ] && command -v sudo >/dev/null 2>&1 && [ -d /etc/sudoers.d ] && [ -x "$HELPER_BIN" ]; then
+  TMP_SUDOERS="/etc/sudoers.d/fnos-vm-remote.tmp.$$"
+  cat > "$TMP_SUDOERS" <<EOF
+# FNOS VM Remote：允许应用包用户仅以 root 执行受限 helper
+$RUN_USER ALL=(root) NOPASSWD: $HELPER_BIN status, $HELPER_BIN start, $HELPER_BIN shutdown
+EOF
+  chmod 0440 "$TMP_SUDOERS"
+  if command -v visudo >/dev/null 2>&1 && ! visudo -cf "$TMP_SUDOERS" >/dev/null 2>&1; then
+    rm -f "$TMP_SUDOERS"
+    echo "sudoers 校验失败，跳过（应用功能可能受限）" >&2
+  else
+    mv "$TMP_SUDOERS" "/etc/sudoers.d/fnos-vm-remote"
+    chmod 0440 "/etc/sudoers.d/fnos-vm-remote"
+    info "sudoers 已重新断言"
+  fi
+else
+  info "跳过 sudoers 断言（非 root 或缺少 sudo）"
+fi
+
+# 3. 目录归属
+if [ "$(id -u)" = "0" ]; then
+  chown -R "$RUN_USER:$RUN_GROUP" "$PKGVAR"
+fi
+
+info "升级完成。配置与 Token 已保留；虚拟机未被触碰。"
+exit 0

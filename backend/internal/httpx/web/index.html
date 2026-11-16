@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>FNOS VM Remote</title>
+<link rel="icon" href="images/icon_64.png" type="image/png" />
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<header class="topbar">
+  <div class="topbar-inner">
+    <div class="brand">
+      <img src="images/icon_64.png" width="28" height="28" alt="" />
+      <div>
+        <div class="brand-title">FNOS VM Remote</div>
+        <div class="brand-sub">Windows 虚拟机局域网遥控</div>
+      </div>
+    </div>
+    <button id="btn-logout" class="btn btn-ghost hidden" type="button">退出</button>
+  </div>
+</header>
+
+<main class="container">
+
+  <!-- Token 登录 -->
+  <section id="login-view" class="card login-card">
+    <h1 class="card-title">输入访问 Token</h1>
+    <p class="muted">本应用不设账号密码，所有操作均需 API Token。Token 仅保存在本次浏览会话中，关闭页面即失效。</p>
+    <form id="login-form" autocomplete="off">
+      <label class="field">
+        <span>API Token</span>
+        <input id="token-input" class="input" type="password" placeholder="粘贴 Token" autocomplete="off" required />
+      </label>
+      <button type="submit" class="btn btn-primary btn-block">进入管理界面</button>
+      <p id="login-error" class="error-text" role="alert"></p>
+    </form>
+    <details class="help">
+      <summary>如何获取初始 Token？</summary>
+      <ol>
+        <li>安装应用后，初始 Token 已随机生成并写入应用数据目录下的 <code>initial-token.txt</code>（权限 0600）。</li>
+        <li>可通过 FNOS 文件管理器进入 <code>应用数据/fnos-vm-remote</code> 目录，或 SSH 执行：<br /><code>sudo cat /vol1/@appdata/fnos-vm-remote/initial-token.txt</code></li>
+        <li>路径中的卷编号（vol1）以你的实际存储为准。</li>
+        <li>登录后建议立即在「Token 管理」中重新生成一个新 Token；重新生成后旧的初始 Token 文件会被自动删除。</li>
+      </ol>
+    </details>
+  </section>
+
+  <!-- 主界面 -->
+  <div id="app-view" class="hidden">
+
+    <!-- 虚拟机状态 -->
+    <section class="card">
+      <div class="card-head">
+        <h2 class="card-title">虚拟机状态</h2>
+        <button id="btn-refresh" class="btn btn-ghost" type="button">刷新状态</button>
+      </div>
+      <div class="vm-grid">
+        <div class="vm-state-wrap">
+          <div id="state-badge" class="state-badge state-unknown">查询中…</div>
+          <div id="state-updated" class="muted small">—</div>
+        </div>
+        <dl class="vm-meta">
+          <div><dt>虚拟机名称</dt><dd id="vm-name" class="mono">—</dd></div>
+          <div><dt>UUID</dt><dd id="vm-uuid" class="mono small">—</dd></div>
+          <div><dt>libvirt 原始状态</dt><dd id="vm-raw" class="mono small">—</dd></div>
+        </dl>
+      </div>
+      <div class="action-row">
+        <button id="btn-start" class="btn btn-success" type="button">开机</button>
+        <button id="btn-shutdown" class="btn btn-danger" type="button">正常关机</button>
+      </div>
+      <p id="action-hint" class="muted small">正常关机仅向 Windows 发送关机信号；超时不会强制断电。</p>
+      <div id="action-message" class="action-message hidden" role="status"></div>
+    </section>
+
+    <!-- API 与服务设置 -->
+    <section class="card">
+      <div class="card-head">
+        <h2 class="card-title">API 与服务设置</h2>
+      </div>
+      <dl class="vm-meta">
+        <div><dt>服务端口</dt><dd id="cfg-port" class="mono">—</dd></div>
+        <div><dt>应用版本</dt><dd id="cfg-version" class="mono">—</dd></div>
+        <div><dt>API 地址</dt><dd id="cfg-api" class="mono small">—</dd></div>
+      </dl>
+      <details class="help">
+        <summary>如何修改服务端口？</summary>
+        <p>端口不在本页面直接修改，请按以下步骤操作（FNOS 官方联动方式，保证桌面入口与服务一致）：</p>
+        <ol>
+          <li>打开 FNOS 应用中心 →「FNOS VM Remote」→ 设置。</li>
+          <li>修改「服务端口」并保存。</li>
+          <li>应用会自动重启并监听新端口，桌面入口地址随之更新；端口被占用或非法时会给出明确提示并回滚。</li>
+          <li>如使用 iPhone 快捷指令，请同步更新快捷指令中的 URL 端口。</li>
+        </ol>
+      </details>
+      <details class="help">
+        <summary>API 调用示例</summary>
+        <pre id="api-example" class="code"></pre>
+      </details>
+      <details class="help">
+        <summary>NFC 快捷指令配置</summary>
+        <ol>
+          <li>在 iPhone「快捷指令」App 中新建自动化 → 触发条件选「NFC」→ 扫描贴在开机/关机位置的标签。</li>
+          <li>添加「获取 URL 内容」动作，方法选 POST，URL 填 <code>http://&lt;FNOS局域网IP&gt;:&lt;端口&gt;/api/v1/vm/start</code>（关机标签用 <code>/api/v1/vm/shutdown</code>）。</li>
+          <li>添加请求头：<code>Authorization: Bearer &lt;你的 Token&gt;</code>。</li>
+          <li>添加「显示结果」展示返回 JSON，查看 success / message。</li>
+        </ol>
+        <p class="muted small">完整中文教程见仓库 <code>docs/nfc-guide.md</code>。NFC 标签不存储 Token，仅作为触发器；快捷指令需处于可访问家庭局域网的网络环境。iOS 版本不同可能对 NFC 自动化的运行确认和解锁状态有不同要求，请以实际设备测试结果为准。</p>
+      </details>
+    </section>
+
+    <!-- Token 管理 -->
+    <section class="card">
+      <div class="card-head">
+        <h2 class="card-title">Token 管理</h2>
+      </div>
+      <dl class="vm-meta">
+        <div><dt>Token 创建时间</dt><dd id="token-created" class="mono small">—</dd></div>
+        <div><dt>Token 更新时间</dt><dd id="token-updated" class="mono small">—</dd></div>
+      </dl>
+      <p class="muted small">完整 Token 不会显示在普通页面上，仅在重新生成的瞬间展示一次。</p>
+      <button id="btn-rotate" class="btn btn-warning" type="button">重新生成 Token</button>
+      <div id="new-token-wrap" class="new-token hidden">
+        <p class="small">新 Token（仅显示一次，请立即保存）：</p>
+        <code id="new-token" class="mono token-once"></code>
+        <button id="btn-copy-token" class="btn btn-ghost" type="button">复制到剪贴板</button>
+      </div>
+    </section>
+
+    <!-- 操作日志 -->
+    <section class="card">
+      <div class="card-head">
+        <h2 class="card-title">操作日志</h2>
+        <div class="btn-group">
+          <button id="btn-logs-refresh" class="btn btn-ghost" type="button">刷新日志</button>
+          <button id="btn-logs-clear" class="btn btn-ghost" type="button">清空日志</button>
+        </div>
+      </div>
+      <ul id="logs-list" class="logs-list"></ul>
+      <p id="logs-empty" class="muted small hidden">暂无日志。</p>
+    </section>
+  </div>
+</main>
+
+<div id="toast" class="toast hidden" role="status"></div>
+
+<script src="app.js"></script>
+</body>
+</html>
