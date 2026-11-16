@@ -1,5 +1,24 @@
 # Changelog
 
+## [1.0.0] - 2026-11-16
+
+首个正式版本。
+
+基于任务书 v1 范围交付：
+
+- FNOS 原生 FPK 应用：Web 管理界面 + HTTP API（Bearer Token）
+- 虚拟机状态查询（libvirt 实时，running / shut off / 启动中 / 关机中 / paused / unknown）
+- 开机 / 正常关机（幂等；关机超时不强制断电）
+- Token 首次打开应用时生成，仅存 SHA-256；日志不记 Token
+- 服务端口可在安装向导及应用「设置」中修改（`port` 保留字段名，FNOS 原生 `${port}` 入口联动，配置回滚+健康检查）
+- 受限 helper（sudoers 三命令白名单 + UUID 校验），服务降权为应用包用户
+- 安装/升级/卸载生命周期（autostart 不触碰、虚拟机不改定义）
+- iPhone NFC 触碰开关机 + Siri 语音开关机配置说明（docs/nfc-guide.md）
+- GitHub Actions：PR 检查（gofmt/vet/单测/FPK 结构校验）、main 构建、Tag 触发 Release
+
+真机验证状态（以 FNOS 设备实测为准）：安装、升级、端口配置、桌面入口、NFC 说明中的快捷指令流程；
+Windows 正常关机耗时、sudoers/helper 控制链路建议在首次使用时再确认一次（应用内「操作日志」可看到每次 VM 操作结果）。
+
 ## [0.3.0] - 2026-11-16
 
 入口改为 FNOS 保留字段名 `port`（`${port}` 占位，FNOS 原生替换）：
