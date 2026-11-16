@@ -10,6 +10,38 @@ Base URL：`http://<FNOS-IP>:<端口>/api/v1`（默认端口 8321）
 - HTTP 状态码语义：200 成功 / 400 参数非法 / 401 Token 无效 / 404 不存在 / 409 当前状态不允许 / 502 虚拟机控制失败 / 500 服务内部错误。
 - API **不接受**任何虚拟机标识参数，不提供 destroy/reboot。
 
+## 0. 首次初始化（未初始化时）
+
+全新安装后，应用处于"未初始化"状态：除健康检查与初始化接口外，所有接口返回 `403`。
+
+### 0.1 初始化状态
+
+```http
+GET /api/v1/setup/status
+```
+
+```json
+{ "success": true, "data": { "setup_required": true, "version": "0.2.0" } }
+```
+
+### 0.2 生成初始 Token
+
+```http
+POST /api/v1/setup
+```
+
+```json
+{
+  "success": true,
+  "data": {
+    "new_token": "仅此一次返回的完整 Token",
+    "message": "初始 Token 已生成，此明文仅显示这一次，请立即复制并妥善保存"
+  }
+}
+```
+
+仅未初始化时可用；已初始化则返回 `409`。
+
 ## 1. 健康检查（无需鉴权）
 
 ```http
@@ -124,7 +156,7 @@ Authorization: Bearer <TOKEN>
 }
 ```
 
-旧 Token 立即失效；安装时生成的 `initial-token.txt` 会被自动删除。
+旧 Token 立即失效。
 
 ## 7. 日志
 

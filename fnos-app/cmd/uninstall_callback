@@ -2,7 +2,7 @@
 # FNOS VM Remote — 卸载后清理：
 #   1. 停止服务（幂等）
 #   2. 移除 /etc/sudoers.d/fnos-vm-remote
-#   3. 按用户选择保留或删除应用数据（config.json / auth.json / logs / initial-token.txt）
+#   3. 按用户选择保留或删除应用数据（config.json / auth.json / logs）
 # 绝不删除虚拟机定义、磁盘文件，绝不修改虚拟机 autostart。
 set -u
 PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin

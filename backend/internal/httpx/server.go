@@ -47,6 +47,8 @@ func (s *Server) Routes() *http.ServeMux {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("GET /api/v1/health", s.handleHealth)
+	mux.HandleFunc("GET /api/v1/setup/status", s.handleSetupStatus)
+	mux.HandleFunc("POST /api/v1/setup", s.handleSetup)
 	mux.Handle("GET /api/v1/vm/status", s.requireAuth(http.HandlerFunc(s.handleVMStatus)))
 	mux.Handle("POST /api/v1/vm/start", s.requireAuth(http.HandlerFunc(s.handleVMStart)))
 	mux.Handle("POST /api/v1/vm/shutdown", s.requireAuth(http.HandlerFunc(s.handleVMShutdown)))
@@ -68,7 +70,8 @@ func (s *Server) Handler() http.Handler {
 func securityHeaders(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("X-Content-Type-Options", "nosniff")
-		w.Header().Set("X-Frame-Options", "DENY")
+		// 注意：FNOS 桌面通过 iframe 嵌入本应用，不能发送 X-Frame-Options: DENY，
+		// 否则桌面入口显示空白页（真机已验证）。权限由 Token 鉴权把守。
 		w.Header().Set("Referrer-Policy", "no-referrer")
 		w.Header().Set("Content-Security-Policy", "default-src 'self'; style-src 'self'; script-src 'self'; img-src 'self' data:; connect-src 'self'")
 		next.ServeHTTP(w, r)
@@ -130,6 +133,11 @@ func (s *Server) audit(r *http.Request, action, result string, detail map[string
 
 func (s *Server) requireAuth(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// 首次安装尚未初始化时，除健康检查与初始化接口外一律拒绝
+		if !s.store.HasToken() {
+			writeJSON(w, http.StatusForbidden, apiResponse{Success: false, Error: "应用尚未初始化，请先完成初始化设置"})
+			return
+		}
 		hdr := r.Header.Get("Authorization")
 		token := ""
 		if strings.HasPrefix(hdr, "Bearer ") {
@@ -148,6 +156,39 @@ func (s *Server) requireAuth(next http.Handler) http.Handler {
 
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	writeOK(w, map[string]any{"app": "fnos-vm-remote", "status": "ok", "version": s.version})
+}
+
+// ---------- 首次初始化（无需鉴权，仅限未初始化时） ----------
+
+func (s *Server) handleSetupStatus(w http.ResponseWriter, r *http.Request) {
+	writeOK(w, map[string]any{
+		"setup_required": !s.store.HasToken(),
+		"version":        s.version,
+	})
+}
+
+// handleSetup 在首次初始化时由服务端生成高强度 Token，明文仅返回一次。
+// 该接口在应用完成初始化后永久失效。
+func (s *Server) handleSetup(w http.ResponseWriter, r *http.Request) {
+	if s.store.HasToken() {
+		writeErr(w, http.StatusConflict, "应用已初始化，如需重置请先卸载并删除数据")
+		return
+	}
+	token, err := config.GenerateToken()
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, "生成 Token 失败")
+		return
+	}
+	if err := s.store.SetToken(token); err != nil {
+		s.audit(r, "setup.init", "error", map[string]any{"reason": err.Error()})
+		writeErr(w, http.StatusInternalServerError, "保存 Token 失败")
+		return
+	}
+	s.audit(r, "setup.init", "ok", nil)
+	writeOK(w, map[string]any{
+		"new_token": token,
+		"message":   "初始 Token 已生成，此明文仅显示这一次，请立即复制并妥善保存",
+	})
 }
 
 // ---------- 虚拟机状态 ----------
@@ -252,12 +293,12 @@ func (s *Server) handleGetConfig(w http.ResponseWriter, r *http.Request) {
 		cfg = config.Config{Port: s.port}
 	}
 	writeOK(w, map[string]any{
-		"port":               cfg.Port,
-		"listen_port":        s.port,
-		"version":            s.version,
-		"api_base":           "/api/v1",
-		"vm":                 map[string]string{"name": "3f1jeea2", "uuid": "1ce21ce8-0bd1-4ab3-a9c0-064abf81381f"},
-		"initial_token_hint": "初始 Token 保存在应用数据目录的 initial-token.txt（0600）。重新生成 Token 后该文件会被自动删除。",
+		"port":        cfg.Port,
+		"listen_port": s.port,
+		"version":     s.version,
+		"api_base":    "/api/v1",
+		"vm":          map[string]string{"name": "3f1jeea2", "uuid": "1ce21ce8-0bd1-4ab3-a9c0-064abf81381f"},
+		"setup_done":  s.store.HasToken(),
 	})
 }
 
@@ -283,8 +324,6 @@ func (s *Server) handleTokenRotate(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusInternalServerError, "保存 Token 失败")
 		return
 	}
-	// Token 已轮换：安装时生成的初始 Token 明文文件一并销毁
-	s.store.RemoveInitialToken()
 	s.audit(r, "token.rotate", "ok", nil)
 	writeOK(w, map[string]any{
 		"new_token": token, // 仅此一次完整返回

@@ -59,11 +59,11 @@ FNOS 官方文档允许"生命周期脚本确实需要执行特权准备任务�
 
 ## 2. Token 鉴权
 
-- 安装时 `install_callback` 生成 48 字符 base64url 随机 Token（36 字节 CSPRNG）
+- 服务端用 CSPRNG 在**首次打开应用时**（初始化页）生成 48 字符 base64url Token
 - 仅 `sha256(token)` 持久化于 `auth.json`（0600）；校验使用 constant-time 比较
-- 安装时明文另写 `initial-token.txt`（0600）一次性供首次登录；登录后"重新生成 Token"会删除该文件
+- 明文仅返回一次（初始化/重新生成的响应）；UI 不在普通页面展示完整 Token
 - API 全部需 Bearer；含健康检查以外的所有端点
-- Web UI 不在普通页面展示完整 Token；仅"重新生成"瞬间返回一次明文
+- 未初始化时（首次安装），除 `/api/v1/health` 与 `/api/v1/setup` 外所有接口返回 403；`/api/v1/setup` 仅在此状态下可用且只能调用一次
 - 日志仅记录动作/结果/IP，**不记录任何形式的 Token**（含被拒绝的）
 
 ## 3. API 安全
@@ -77,7 +77,7 @@ FNOS 官方文档允许"生命周期脚本确实需要执行特权准备任务�
 
 ## 4. 存储安全
 
-- `$TRIM_PKGVAR` 权限 0750，包用户所有；`auth.json`/`config.json`/`initial-token.txt` 0600
+- `$TRIM_PKGVAR` 权限 0750，包用户所有；`auth.json`/`config.json` 0600
 - 日志 `logs/fnos-vm-remote.log`：JSON Lines，单文件 512KB 轮转 + 1 个 `.1` 备份
 
 ## 5. 网络边界
@@ -90,7 +90,7 @@ FNOS 官方文档允许"生命周期脚本确实需要执行特权准备任务�
 ## 6. 已知限制与说明
 
 1. **明文 HTTP**：Token 在自己的局域网内以明文传输（NAS 无证书场景的常规取舍）。局域网内不受信任设备/访客可嗅探到 Token。建议家庭网络不开放访客访问，或改用 FNOS 自带 HTTPS 反代并接受证书配置成本。
-2. **初始 Token 窗口期**：安装完成到首次登录期间，能访问应用数据目录的用户可读取 `initial-token.txt`。建议安装后立即登录并重新生成 Token。
+2. **初始化窗口期**：安装完成到首次"初始化"之间，局域网内的设备可以抢先调用 `/api/v1/setup` 把 Token 设为自己的值（一次性操作）。建议安装后立即打开应用完成初始化。
 3. **CSRF**：API 使用 Bearer Header（非 Cookie），浏览器不会自动附带，故无 CSRF 风险；UI Token 存 `sessionStorage`。
 4. **本地暴力破解**：无速率限制（个人局域网场景）。失败尝试会写入日志（含来源 IP），不影响可用性，但请定期检查异常日志。
 5. **helper 提权面**：如果 FNOS 安装流程允许用户以非 root 安装，本应用会直接失败（明确报错），而不是降级为不安全模式。

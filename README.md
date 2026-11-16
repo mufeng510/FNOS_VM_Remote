@@ -34,8 +34,7 @@
 1. 从 [Releases](https://github.com/mufeng510/FNOS_VM_Remote/releases) 下载 `fnos-vm-remote-vX.Y.Z.fpk`。
 2. FNOS 应用中心 → 手动安装 → 选择该 `.fpk`。
 3. 安装向导中确认/修改服务端口（默认 8321）。
-4. 安装完成后，打开应用，按页面提示获取初始 Token（`initial-token.txt`）并登录。
-5. 登录后立即在「Token 管理」中重新生成 Token。
+4. 安装完成后，打开应用，按页面提示生成初始 Token（仅显示一次，请复制保存）。
 
 详见 [docs/install-uninstall.md](docs/install-uninstall.md)。
 

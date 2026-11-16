@@ -164,19 +164,6 @@ func GenerateToken() (string, error) {
 	return token, nil
 }
 
-// InitialTokenPath 返回初始 Token 明文文件路径（安装时一次性写入）。
-func (s *Store) InitialTokenPath() string { return filepath.Join(s.Dir, "initial-token.txt") }
-
-// WriteInitialToken 将安装时生成的 Token 明文一次性写入（0600）。
-func (s *Store) WriteInitialToken(token string) error {
-	return os.WriteFile(s.InitialTokenPath(), []byte(token+"\n"), 0o600)
-}
-
-// RemoveInitialToken 删除初始 Token 文件（Token 重新生成后调用）。
-func (s *Store) RemoveInitialToken() {
-	_ = os.Remove(s.InitialTokenPath())
-}
-
 // AppendLog 追加一条操作日志并执行轮转。永不记录 Token。
 func (s *Store) AppendLog(entry map[string]any) error {
 	if err := s.EnsureDirs(); err != nil {

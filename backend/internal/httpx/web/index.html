@@ -23,8 +23,24 @@
 
 <main class="container">
 
+  <!-- 首次初始化 -->
+  <section id="setup-view" class="card login-card hidden">
+    <h1 class="card-title">初始化 FNOS VM Remote</h1>
+    <p class="muted">首次使用：生成一个访问 Token。Token 仅显示一次，请立即复制保存；之后用于页面登录和所有 API 调用。</p>
+    <div id="setup-gen-wrap">
+      <button id="btn-setup" class="btn btn-primary btn-block" type="button">生成初始 Token 并进入</button>
+      <p id="setup-error" class="error-text" role="alert"></p>
+    </div>
+    <div id="setup-token-wrap" class="new-token hidden">
+      <p class="small">你的初始 Token（仅显示这一次）：</p>
+      <code id="setup-token" class="mono token-once"></code>
+      <button id="btn-copy-setup" class="btn btn-ghost" type="button">复制到剪贴板</button>
+      <button id="btn-setup-done" class="btn btn-primary btn-block" type="button">我已保存，进入管理界面</button>
+    </div>
+  </section>
+
   <!-- Token 登录 -->
-  <section id="login-view" class="card login-card">
+  <section id="login-view" class="card login-card hidden">
     <h1 class="card-title">输入访问 Token</h1>
     <p class="muted">本应用不设账号密码，所有操作均需 API Token。Token 仅保存在本次浏览会话中，关闭页面即失效。</p>
     <form id="login-form" autocomplete="off">
@@ -35,15 +51,6 @@
       <button type="submit" class="btn btn-primary btn-block">进入管理界面</button>
       <p id="login-error" class="error-text" role="alert"></p>
     </form>
-    <details class="help">
-      <summary>如何获取初始 Token？</summary>
-      <ol>
-        <li>安装应用后，初始 Token 已随机生成并写入应用数据目录下的 <code>initial-token.txt</code>（权限 0600）。</li>
-        <li>可通过 FNOS 文件管理器进入 <code>应用数据/fnos-vm-remote</code> 目录，或 SSH 执行：<br /><code>sudo cat /vol1/@appdata/fnos-vm-remote/initial-token.txt</code></li>
-        <li>路径中的卷编号（vol1）以你的实际存储为准。</li>
-        <li>登录后建议立即在「Token 管理」中重新生成一个新 Token；重新生成后旧的初始 Token 文件会被自动删除。</li>
-      </ol>
-    </details>
   </section>
 
   <!-- 主界面 -->

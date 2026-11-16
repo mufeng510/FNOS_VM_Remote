@@ -167,6 +167,7 @@ async function refreshLogs() {
 }
 
 function showLogin(message) {
+  $('#setup-view').classList.add('hidden');
   $('#login-view').classList.remove('hidden');
   $('#app-view').classList.add('hidden');
   $('#btn-logout').classList.add('hidden');
@@ -174,7 +175,16 @@ function showLogin(message) {
   if (state.refreshTimer) { clearInterval(state.refreshTimer); state.refreshTimer = null; }
 }
 
+function showSetup() {
+  $('#setup-view').classList.remove('hidden');
+  $('#login-view').classList.add('hidden');
+  $('#app-view').classList.add('hidden');
+  $('#btn-logout').classList.add('hidden');
+  if (state.refreshTimer) { clearInterval(state.refreshTimer); state.refreshTimer = null; }
+}
+
 function showApp() {
+  $('#setup-view').classList.add('hidden');
   $('#login-view').classList.add('hidden');
   $('#app-view').classList.remove('hidden');
   $('#btn-logout').classList.remove('hidden');
@@ -285,6 +295,42 @@ $('#btn-logout').addEventListener('click', () => {
   showLogin('');
 });
 
+$('#btn-setup').addEventListener('click', async () => {
+  const btn = $('#btn-setup');
+  btn.disabled = true;
+  $('#setup-error').textContent = '';
+  try {
+    const resp = await fetch('/api/v1/setup', { method: 'POST' });
+    const body = await resp.json().catch(() => null);
+    if (resp.ok && body && body.success) {
+      $('#setup-gen-wrap').classList.add('hidden');
+      $('#setup-token').textContent = body.data.new_token;
+      $('#setup-token-wrap').classList.remove('hidden');
+      state.token = body.data.new_token;
+    } else {
+      $('#setup-error').textContent = (body && body.error) || '初始化失败';
+      btn.disabled = false;
+    }
+  } catch (err) {
+    $('#setup-error').textContent = '请求失败：' + err.message;
+    btn.disabled = false;
+  }
+});
+
+$('#btn-copy-setup').addEventListener('click', async () => {
+  try {
+    await navigator.clipboard.writeText($('#setup-token').textContent);
+    showToast('已复制到剪贴板');
+  } catch {
+    showToast('复制失败，请手动选中复制');
+  }
+});
+
+$('#btn-setup-done').addEventListener('click', () => {
+  sessionStorage.setItem('vmremote_token', state.token);
+  showApp();
+});
+
 $('#btn-refresh').addEventListener('click', refreshStatus);
 $('#btn-start').addEventListener('click', doStart);
 $('#btn-shutdown').addEventListener('click', doShutdown);
@@ -308,8 +354,18 @@ $('#btn-logs-clear').addEventListener('click', async () => {
 
 /* ---------- 启动 ---------- */
 
-if (state.token) {
-  showApp();
-} else {
-  showLogin('');
-}
+(async () => {
+  try {
+    const resp = await fetch('/api/v1/setup/status');
+    const body = await resp.json();
+    if (body && body.success && body.data && body.data.setup_required) {
+      showSetup();
+      return;
+    }
+  } catch { /* 网络异常时退回登录视图 */ }
+  if (state.token) {
+    showApp();
+  } else {
+    showLogin('');
+  }
+})();

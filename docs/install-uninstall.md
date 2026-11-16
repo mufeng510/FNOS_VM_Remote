@@ -21,14 +21,17 @@
    - 桌面出现「FNOS VM 遥控」图标（仅管理员可见），或应用中心 → 已安装 → 打开。
    - 首次使用：按页面提示获取初始 Token 并登录。
 
-### 获取初始 Token
+### 首次使用：生成初始 Token
 
-初始 Token 在安装时随机生成，明文保存在 `initial-token.txt`（0600）：
+安装完成后，打开应用（桌面图标），按页面提示点击「生成初始 Token 并进入」：
 
-- FNOS 文件管理器：进入应用数据目录 `fnos-vm-remote`（应用中心 → 应用详情通常可见数据目录入口），打开 `initial-token.txt`；或
-- SSH：`sudo cat /vol1/@appdata/fnos-vm-remote/initial-token.txt`（卷号视存储而定，常见 `vol1`）
+- Token 由服务端用 CSPRNG 生成（48 字符 base64url）；
+- **仅显示这一次**，请立即复制保存（用于页面登录和快捷指令的 `Authorization: Bearer <TOKEN>`）；
+- 全程不落盘明文（服务端只存 SHA-256），也不需要 SSH 或文件管理器。
 
-登录后建议立即在「Token 管理」重新生成 Token（会自动删除 initial-token.txt）。
+如需重新生成：登录后 →「Token 管理」→「重新生成 Token」。
+
+> 从 0.1.x 升级：若你的设备是 0.1.x 全新安装且你尚未设置过快捷指令，最干净的方式是**卸载时删除数据 → 重新安装 0.2.0 → 打开应用按提示生成新 Token**，全程不需要文件。
 
 ## 三、升级
 

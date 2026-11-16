@@ -2,9 +2,10 @@
 # FNOS VM Remote — 安装后初始化：
 #   1. 校验目标虚拟机（root 上下文）
 #   2. 校验向导端口并写入 config.json（已存在则保留）
-#   3. 首次生成高强度随机 Token（仅首次；已存在则保留）
+#   3. 渲染桌面入口端口
 #   4. 配置 /etc/sudoers.d/fnos-vm-remote，使包用户仅可执行受限 helper
 #   5. 目录归属应用包用户
+# Token 由用户首次打开应用时在"初始化"页生成，本脚本不创建任何 Token。
 set -u
 PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 export PATH
@@ -62,25 +63,7 @@ else
   info "已写入 config.json (port=${PORT})"
 fi
 
-# ---------- 4. 首次生成 Token ----------
-AUTH_FILE="${PKGVAR}/auth.json"
-if [ -f "$AUTH_FILE" ]; then
-  info "auth.json 已存在，保留原 Token"
-else
-  TOKEN="$(head -c 36 /dev/urandom | base64 | tr '+/' '-_' | tr -d '=')"
-  if [ "${#TOKEN}" -lt 32 ]; then
-    fail "Token 生成失败（熵不足）"
-  fi
-  HASH="$(printf %s "$TOKEN" | sha256sum | awk '{print $1}')"
-  NOW="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-  printf '{\n  "token_sha256": "%s",\n  "created_at": "%s",\n  "updated_at": "%s"\n}\n' \
-    "$HASH" "$NOW" "$NOW" > "$AUTH_FILE"
-  printf '%s\n' "$TOKEN" > "${PKGVAR}/initial-token.txt"
-  chmod 600 "$AUTH_FILE" "${PKGVAR}/initial-token.txt"
-  info "已生成初始 Token（见 ${PKGVAR}/initial-token.txt，0600 权限）"
-fi
-
-# ---------- 5. sudoers 授权（受限 helper） ----------
+# ---------- 4. sudoers 授权（受限 helper） ----------
 if [ ! -x "$HELPER_BIN" ]; then
   fail "helper 二进制缺失或不可执行: ${HELPER_BIN}"
 fi

@@ -3,11 +3,8 @@ package httpx
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"net/http"
 	"net/http/httptest"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -214,11 +211,6 @@ func TestTokenRotate(t *testing.T) {
 	vm := &stubVM{}
 	srv, store, token := newTestServer(t, vm)
 
-	// 制造一个 initial-token.txt，验证轮换后被删除
-	if err := store.WriteInitialToken(token); err != nil {
-		t.Fatal(err)
-	}
-
 	resp := doReq(t, srv.Client(), http.MethodPost, srv.URL+"/api/v1/auth/token/rotate", token)
 	body := parseBody(t, resp)
 	if resp.StatusCode != http.StatusOK {
@@ -237,10 +229,6 @@ func TestTokenRotate(t *testing.T) {
 	}
 	if store.ValidateToken(token) {
 		t.Fatal("old token must be invalidated")
-	}
-	// initial-token.txt 必须被删除
-	if _, err := os.Stat(store.InitialTokenPath()); !errors.Is(err, os.ErrNotExist) {
-		t.Fatal("initial-token.txt must be removed after rotation")
 	}
 }
 
@@ -299,29 +287,60 @@ func TestUnknownRoutesAndMethods(t *testing.T) {
 	}
 }
 
-func TestInitialTokenFileFlow(t *testing.T) {
-	// 模拟安装流程：SetToken + WriteInitialToken → 文件可读且为 0600
+func TestSetupFlow(t *testing.T) {
+	// 未初始化的全新实例：所有受保护接口 403，setup/status 报告 setup_required
 	dir := t.TempDir()
 	store := config.NewStore(dir)
-	token, _ := config.GenerateToken()
-	if err := store.SetToken(token); err != nil {
+	if err := store.EnsureDirs(); err != nil {
 		t.Fatal(err)
 	}
-	if err := store.WriteInitialToken(token); err != nil {
-		t.Fatal(err)
+	vm := &stubVM{status: vmmgmt.VMStatus{Name: "3f1jeea2", UUID: "1ce21ce8-0bd1-4ab3-a9c0-064abf81381f", State: "shut off", RawState: "shut off"}}
+	srv := httptest.NewServer(New(store, vm, "0.2.0-test", 8321).Handler())
+	defer srv.Close()
+
+	// setup/status 无需鉴权
+	resp := doReq(t, srv.Client(), http.MethodGet, srv.URL+"/api/v1/setup/status", "")
+	body := parseBody(t, resp)
+	data := body["data"].(map[string]any)
+	if data["setup_required"] != true {
+		t.Fatal("fresh instance must report setup_required=true")
 	}
-	fmtBytes, err := os.ReadFile(filepath.Join(dir, "initial-token.txt"))
-	if err != nil {
-		t.Fatal(err)
+	// 受保护接口：403
+	resp = doReq(t, srv.Client(), http.MethodGet, srv.URL+"/api/v1/vm/status", "")
+	if resp.StatusCode != http.StatusForbidden {
+		resp.Body.Close()
+		t.Fatalf("uninitialized: status = %d, want 403", resp.StatusCode)
 	}
-	if strings.TrimSpace(string(fmtBytes)) != token {
-		t.Fatal("initial token file mismatch")
+	resp.Body.Close()
+
+	// 初始化：服务端生成 Token，明文仅返回一次
+	resp = doReq(t, srv.Client(), http.MethodPost, srv.URL+"/api/v1/setup", "")
+	body = parseBody(t, resp)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("setup: status = %d", resp.StatusCode)
 	}
-	fi, err := os.Stat(filepath.Join(dir, "initial-token.txt"))
-	if err != nil {
-		t.Fatal(err)
+	setupData := body["data"].(map[string]any)
+	token, _ := setupData["new_token"].(string)
+	if len(token) != 48 {
+		t.Fatalf("expected 48-char token, got %d", len(token))
 	}
-	if fi.Mode().Perm() != 0o600 {
-		t.Fatalf("initial-token.txt perm = %o, want 600", fi.Mode().Perm())
+
+	// 重复初始化：409
+	resp = doReq(t, srv.Client(), http.MethodPost, srv.URL+"/api/v1/setup", "")
+	if resp.StatusCode != http.StatusConflict {
+		resp.Body.Close()
+		t.Fatalf("double setup: status = %d, want 409", resp.StatusCode)
+	}
+	resp.Body.Close()
+
+	// 受保护接口用新 Token 可正常工作
+	resp = doReq(t, srv.Client(), http.MethodGet, srv.URL+"/api/v1/vm/status", token)
+	if resp.StatusCode != http.StatusOK {
+		resp.Body.Close()
+		t.Fatalf("authorized after setup: status = %d", resp.StatusCode)
+	}
+	body = parseBody(t, resp)
+	if data, _ := body["data"].(map[string]any); data["state"] != "shut off" {
+		t.Fatalf("state = %v", data["state"])
 	}
 }
